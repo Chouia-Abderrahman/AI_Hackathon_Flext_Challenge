@@ -75,7 +75,7 @@ public partial class MyHackApp
                     figures.Column(["gap-1"], content: saved =>
                     {
                         saved.Text([Text.Caption, "uppercase tracking-[0.15em] font-semibold text-brand-secondary"],
-                            text: "Flext removes");
+                            text: Units.FreesVerb(metric));
 
                         saved.Row(["items-baseline gap-2.5 flex-wrap"], content: row =>
                         {
@@ -104,7 +104,7 @@ public partial class MyHackApp
                         $"Still worked with Flext — {Units.Say(metric, year.Flext)}");
 
                     RenderLegendKey(legend, "bg-foreground/15",
-                        $"Freed by Flext — {Units.Say(metric, year.Saved)}");
+                        $"{Units.FreedLabel(metric)} — {Units.Say(metric, year.Saved)}");
                 });
             });
         });

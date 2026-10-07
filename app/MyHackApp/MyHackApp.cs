@@ -266,8 +266,10 @@ public partial class MyHackApp(IApp<SessionIdentity, ClientParameters> app)
                                     text: Units.Short(metric));
                             });
 
-                            head.Text([Text.Caption, "font-mono text-brand-secondary font-semibold"],
-                                text: $"−{Units.Percent(year.SavedFraction)}");
+                            // A success badge, not the brand colour: orange means work still
+                            // spent everywhere else on this page, so a gain needs its own signal.
+                            head.Row([Badge.SuccessSm, "shrink-0 whitespace-nowrap"], content: badge =>
+                                badge.Text(["text-xs font-semibold"], text: Units.Gain(metric, year.SavedFraction)));
                         });
 
                         card.Column(["gap-1"], content: figure =>

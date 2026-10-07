@@ -204,6 +204,31 @@ public static class Units
         };
     }
 
+    /// The improvement said as a gain, never as a reduction: a minus sign in front of good
+    /// news reads as a loss, and these numbers going down is the entire point of the product.
+    public static string Gain(Metric metric, double fraction) => metric switch
+    {
+        Metric.Hours => $"{Percent(fraction)} freed",
+        Metric.Money => $"{Percent(fraction)} cheaper",
+        _ => $"{Percent(fraction)} cleaner",
+    };
+
+    /// What the saved side is called. Hours are freed, kronor saved, carbon avoided —
+    /// one word each, because the right verb is doing the persuading.
+    public static string FreedLabel(Metric metric) => metric switch
+    {
+        Metric.Hours => "Freed by Flext",
+        Metric.Money => "Saved by Flext",
+        _ => "Avoided by Flext",
+    };
+
+    public static string FreesVerb(Metric metric) => metric switch
+    {
+        Metric.Hours => "Flext frees",
+        Metric.Money => "Flext saves",
+        _ => "Flext avoids",
+    };
+
     public static string Percent(double fraction) =>
         $"{Math.Round(fraction * 100)}%";
 }
