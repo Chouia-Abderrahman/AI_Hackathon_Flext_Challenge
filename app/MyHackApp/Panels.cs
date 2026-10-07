@@ -31,6 +31,10 @@ public partial class MyHackApp
     private const string TodayLabel = "On site today";
     private const string FlextLabel = "With Flext";
 
+    /// A freed quantity is green wherever it is written, matching the squares it counts.
+    /// Two steps, because one green cannot clear AA on both the paper and the dark card.
+    private const string FreedText = "text-success-700 dark:text-success-400";
+
     private static readonly Audience[] Audiences =
     [
         new("investor", "An investor",
@@ -74,12 +78,12 @@ public partial class MyHackApp
                 {
                     figures.Column(["gap-1"], content: saved =>
                     {
-                        saved.Text([Text.Caption, "uppercase tracking-[0.15em] font-semibold text-brand-secondary"],
+                        saved.Text([Text.Caption, "uppercase tracking-[0.15em] font-semibold", FreedText],
                             text: Units.FreesVerb(metric));
 
                         saved.Row(["items-baseline gap-2.5 flex-wrap"], content: row =>
                         {
-                            row.Text(["font-heading text-5xl sm:text-6xl leading-none text-brand-secondary"],
+                            row.Text(["font-heading text-5xl sm:text-6xl leading-none", FreedText],
                                 text: Units.Say(metric, year.Saved));
                             row.Text([Text.Body, "text-muted-foreground pb-1"],
                                 text: $"of {Units.Say(metric, year.Traditional)}");

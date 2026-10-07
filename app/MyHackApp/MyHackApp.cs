@@ -189,10 +189,10 @@ public partial class MyHackApp(IApp<SessionIdentity, ClientParameters> app)
                 // What the input buys, stated beside the input rather than only below it.
                 top.Column(["gap-2 sm:items-end sm:text-right"], content: right =>
                 {
-                    right.Text([Text.Caption, "uppercase tracking-[0.15em] text-brand-secondary font-semibold"],
+                    right.Text([Text.Caption, "uppercase tracking-[0.15em] font-semibold", FreedText],
                         text: $"{Units.Short(metric)} saved a year");
 
-                    right.Text(["font-heading text-5xl sm:text-6xl leading-none text-brand-secondary"],
+                    right.Text(["font-heading text-5xl sm:text-6xl leading-none", FreedText],
                         text: Units.Say(metric, year.Saved));
                 });
             });
