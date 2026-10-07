@@ -64,3 +64,6 @@ global using System;
 // `IView` as a friendly alias for `UIView`
 global using IView = Ikon.Parallax.UIView;
 // </ikon-usings>
+
+// Numbers are grouped and formatted by hand so they read the same on every machine.
+global using System.Globalization;

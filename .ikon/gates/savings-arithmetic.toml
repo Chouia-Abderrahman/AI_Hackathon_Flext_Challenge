@@ -1,0 +1,27 @@
+kind = "check"
+description = "A known volume produces the expected hours, money and carbon savings. Assumes the default assumptions; reset them in the app if a demo session has moved the sliders."
+
+# NOTE: every space inside a figure below is a NON-BREAKING space (U+00A0) — both the
+# thousands separator and the gap before the unit — because that is what Units.Say
+# renders, so a figure never wraps mid-number or away from its unit. An ordinary space
+# will NOT match. Keep them when editing this file.
+steps = """
+# Start from a known volume rather than whatever the last visitor left behind.
+fill "Roofs per year" 2000
+
+# 2 000 roofs x (25 h - 3.5 h) = 43 000 carpenter hours.
+expect 43 000 h
+expect Removed by Flext
+
+# The dearer module still wins on total cost: 23 530 SEK against 13 275 SEK a roof.
+tap "Show Money"
+expect 20.5 MSEK
+
+# Offcut waste, plus the crew trips that no longer happen.
+tap "Show CO₂"
+expect 67.4 t
+
+# Leave the page on the metric a first-time visitor should land on.
+tap "Show Hours"
+expect 43 000 h
+"""

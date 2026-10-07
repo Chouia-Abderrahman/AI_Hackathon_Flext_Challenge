@@ -1,0 +1,202 @@
+// The Flext case, as arithmetic. Every input is editable in the app: a number an investor
+// cannot challenge is a number they will not believe.
+
+public enum Metric
+{
+    Hours,
+    Money,
+    Co2,
+}
+
+/// Everything the calculator runs on. Defaults are Flext's own figures where it has them
+/// (20-30 carpenter hours per roof down to 3-4) and Swedish construction norms elsewhere.
+public record Assumptions
+{
+    public double HousesPerYear { get; init; } = 2_000;
+
+    // Flext's claim: the on-site batten layer, before and after.
+    public double TraditionalHours { get; init; } = 25;
+    public double FlextHours { get; init; } = 3.5;
+
+    // A Swedish carpenter, fully loaded: wage plus social fees plus overhead, SEK per hour.
+    public double HourlyRate { get; init; } = 650;
+
+    // The batten layer bought loose - timber, fasteners, the lot - SEK per roof.
+    public double LooseMaterialCost { get; init; } = 6_500;
+
+    // The factory-made module. Deliberately the dearer unit: that is the whole objection.
+    public double FlextModulePrice { get; init; } = 11_000;
+
+    // Battens cut on a roof make offcuts. A factory jig cuts to length.
+    public double SiteWastePercent { get; init; } = 12;
+    public double FactoryWastePercent { get; init; } = 2;
+
+    // Sawn softwood in the batten layer, and its cradle-to-gate footprint.
+    public double BattenMassKg { get; init; } = 220;
+    public double TimberCo2PerKg { get; init; } = 0.31;
+
+    // Crew travel: one van round trip per working day that never has to happen.
+    public double HoursPerSiteTrip { get; init; } = 8;
+    public double TripKm { get; init; } = 40;
+    public double VanCo2PerKm { get; init; } = 0.25;
+
+    // How fast the volume grows once the machine is running.
+    public double AnnualGrowthPercent { get; init; } = 20;
+}
+
+/// One metric, both ways of building the roof.
+public readonly record struct Comparison(double Traditional, double Flext)
+{
+    public double Saved => Traditional - Flext;
+
+    /// What share of the traditional figure Flext removes, clamped so a nonsense
+    /// assumption set cannot produce a grid with negative or runaway squares.
+    public double SavedFraction => Traditional <= 0 ? 0 : Math.Clamp(Saved / Traditional, 0, 1);
+
+    public Comparison Times(double n) => new(Traditional * n, Flext * n);
+}
+
+public record Outcome(Comparison Hours, Comparison Money, Comparison Co2, Assumptions A)
+{
+    public Comparison PerRoof(Metric metric) => metric switch
+    {
+        Metric.Hours => Hours,
+        Metric.Money => Money,
+        _ => Co2,
+    };
+
+    public Comparison PerYear(Metric metric) => PerRoof(metric).Times(A.HousesPerYear);
+
+    /// Roofs built in a given year, counting from year 1, as volume compounds.
+    public double HousesInYear(int year) =>
+        A.HousesPerYear * Math.Pow(1 + A.AnnualGrowthPercent / 100, year - 1);
+
+    /// Savings banked from year 1 through the given year.
+    public double CumulativeSaved(Metric metric, int throughYear)
+    {
+        var perRoof = PerRoof(metric).Saved;
+        var total = 0.0;
+
+        for (var year = 1; year <= throughYear; year++)
+        {
+            total += perRoof * HousesInYear(year);
+        }
+
+        return total;
+    }
+
+    public static Outcome From(Assumptions a)
+    {
+        var hours = new Comparison(a.TraditionalHours, a.FlextHours);
+
+        // Waste is not free: offcuts are timber you bought and then threw away.
+        var looseWithWaste = a.LooseMaterialCost * (1 + a.SiteWastePercent / 100);
+
+        var money = new Comparison(
+            a.TraditionalHours * a.HourlyRate + looseWithWaste,
+            a.FlextHours * a.HourlyRate + a.FlextModulePrice);
+
+        var timberSite = a.BattenMassKg * (1 + a.SiteWastePercent / 100) * a.TimberCo2PerKg;
+        var timberFactory = a.BattenMassKg * (1 + a.FactoryWastePercent / 100) * a.TimberCo2PerKg;
+
+        // Hours removed from the site are crew trips that never happen.
+        var perHourTravel = a.HoursPerSiteTrip <= 0
+            ? 0
+            : a.TripKm * a.VanCo2PerKm / a.HoursPerSiteTrip;
+
+        var co2 = new Comparison(
+            timberSite + a.TraditionalHours * perHourTravel,
+            timberFactory + a.FlextHours * perHourTravel);
+
+        return new Outcome(hours, money, co2, a);
+    }
+}
+
+/// How each metric is named and written. Kept in one place so the grid legend, the stat
+/// cards, the charts and the AI prompt never disagree about what a number means.
+public static class Units
+{
+    public static string Short(Metric metric) => metric switch
+    {
+        Metric.Hours => "Hours",
+        Metric.Money => "Money",
+        _ => "CO₂",
+    };
+
+    public static string Long(Metric metric) => metric switch
+    {
+        Metric.Hours => "Carpenter hours on site",
+        Metric.Money => "Cost of the batten layer",
+        _ => "Carbon footprint",
+    };
+
+    public static string Verb(Metric metric) => metric switch
+    {
+        Metric.Hours => "hours never worked on a roof",
+        Metric.Money => "kronor that stay in the build",
+        _ => "CO₂e never emitted",
+    };
+
+    /// The bare unit, for a chart axis where the scale is already stated.
+    public static string Axis(Metric metric) => metric switch
+    {
+        Metric.Hours => "h",
+        Metric.Money => "SEK",
+        _ => "kg",
+    };
+
+    /// Thousands grouped with a non-breaking space, the Swedish way, and never
+    /// broken across a line.
+    public static string Group(double value) =>
+        Math.Round(value).ToString("#,##0", CultureInfo.InvariantCulture).Replace(",", " ");
+
+    private static string Decimals(double value, int places) =>
+        value.ToString("0." + new string('#', places), CultureInfo.InvariantCulture);
+
+    /// A figure written the way a person would say it out loud.
+    public static string Say(Metric metric, double value)
+    {
+        var v = Math.Abs(value);
+
+        return metric switch
+        {
+            Metric.Hours when v >= 1_000 => $"{Group(value)} h",
+            Metric.Hours => $"{Decimals(value, 1)} h",
+            Metric.Money when v >= 1_000_000 => $"{Decimals(value / 1_000_000, 1)} MSEK",
+            Metric.Money => $"{Group(value)} SEK",
+            _ when v >= 1_000 => $"{Decimals(value / 1_000, 1)} t",
+            _ => $"{Group(value)} kg",
+        };
+    }
+
+    /// One grid square's worth, where the quantity is small and rounding to whole
+    /// units would print "0".
+    public static string SayPrecise(Metric metric, double value) => metric switch
+    {
+        Metric.Hours => $"{Decimals(value, 1)} h",
+        Metric.Money when Math.Abs(value) >= 1_000_000 => $"{Decimals(value / 1_000_000, 2)} MSEK",
+        Metric.Money => $"{Group(value)} SEK",
+        _ when Math.Abs(value) >= 1_000 => $"{Decimals(value / 1_000, 2)} t",
+        _ => $"{Decimals(value, 1)} kg",
+    };
+
+    /// A divisor and a unit for a chart axis, so a ten-year total reads "532 MSEK"
+    /// rather than "532,000,000 SEK".
+    public static (double Divisor, string Unit) AxisScale(Metric metric, double max)
+    {
+        var m = Math.Abs(max);
+
+        return metric switch
+        {
+            Metric.Money when m >= 1_000_000 => (1_000_000, "MSEK"),
+            Metric.Money => (1, "SEK"),
+            Metric.Hours when m >= 100_000 => (1_000, "k h"),
+            Metric.Hours => (1, "h"),
+            _ when m >= 1_000 => (1_000, "t"),
+            _ => (1, "kg"),
+        };
+    }
+
+    public static string Percent(double fraction) =>
+        $"{Math.Round(fraction * 100)}%";
+}

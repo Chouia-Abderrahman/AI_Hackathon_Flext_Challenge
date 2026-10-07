@@ -1,303 +1,334 @@
 return await App.Run(args);
 
-// Which clients share an app instance: one per user. Leave it empty to share one instance.
+// One scenario per person: two people tuning the same sliders should not fight over them.
 public record SessionIdentity(string? UserId);
 
-// Per-client data, mapped from URL query params (`?name=Alice` -> `Name`).
 public record ClientParameters(string Name);
 
-public record Picture(byte[] Data, string MimeType, string Name = "image");
-
-public record ChatMessage(bool FromUser, string Text, IReadOnlyList<Picture> Pictures);
-
-// What went wrong, and the message Try again resends when there is one
-public record Problem(string Message, ChatMessage? Retry = null);
+/// The pitch the model writes from the numbers on screen.
+public record Pitch(string Headline, string[] Points, string Close);
 
 [App]
 public partial class MyHackApp(IApp<SessionIdentity, ClientParameters> app)
 {
+    // Industrial Nordic: warm paper, slate ink, one safety-orange accent for everything
+    // Flext takes away. Anton for figures that have to land like a hammer.
     private UI UI { get; } = new(app, new IkonTheme
     {
-        ["background"] = "#f3f1ec",
-        ["foreground"] = "#151412",
+        ["background"] = "#f5f2ec",
+        ["foreground"] = "#15181d",
         ["card"] = "#ffffff",
-        ["muted-foreground"] = "#5f5b54",
-        ["border"] = "#e4e0d8",
-        ["primary"] = "#ff2a8c",
+        ["muted-foreground"] = "#5a5852",
+        ["border"] = "#e2ded4",
+        ["primary"] = "#ef5b25",
         ["font-heading"] = "Anton",
-        ["radius"] = "rounded-2xl",
+        ["radius"] = "rounded-xl",
 
         DarkMode = new IkonTheme
         {
-            ["background"] = "#151412",
-            ["foreground"] = "#f3f1ec",
-            ["card"] = "#1d1c1a",
-            ["muted-foreground"] = "#a8a39a",
-            ["border"] = "#2a2926",
+            ["background"] = "#101216",
+            ["foreground"] = "#f2efe8",
+            ["card"] = "#181b20",
+            ["muted-foreground"] = "#9b978e",
+            ["border"] = "#262a30",
         },
     });
 
-    private Audio Audio { get; } = new(app);
+    private static readonly Metric[] AllMetrics = [Metric.Hours, Metric.Money, Metric.Co2];
 
-    // The model caps an image at 5 MB after base64 encoding, which grows it by a third
-    private const long MaxImageBytes = 3_500_000;
+    // Volumes a Nordic modular factory would actually recognise.
+    private static readonly double[] Presets = [250, 1_000, 2_000, 5_000, 10_000];
 
-    // The image types the model reads; others (HEIC, SVG) would fail on every retry
-    private static readonly string[] ImageTypes = ["image/png", "image/jpeg", "image/gif", "image/webp"];
+    private const double MinHouses = 100;
+    private const double MaxHouses = 10_000;
+    private const double HousesStep = 100;
 
-    // Message blocks, not exchanges: images ride along in every turn, so the history stays short
-    private const int ContextBlocks = 20;
+    private const int ChartYears = 10;
 
-    private static readonly string[] Suggestions = ["Draw a lighthouse at dusk", "What can you help me with?"];
+    private readonly UserReactive<Assumptions> _assumptions = new(new Assumptions());
+    private readonly UserReactive<Metric> _metric = new(Metric.Hours);
 
-    private readonly UserReactive<string> _draft = new("");
-    private readonly UserReactiveList<Picture> _attached = new();
-    private readonly UserReactiveList<ChatMessage> _messages = new();
-    private readonly UserReactive<KernelContext> _context = new(new KernelContext());
-    private readonly UserReactive<bool> _busy = new(false);
-    private readonly UserReactive<Problem?> _problem = new(null);
+    // Bumped to replay the grid animation: it rides in the grid's key, so a new value
+    // remounts the squares and the CSS timeline starts over.
+    private readonly UserReactive<int> _run = new(0);
+
+    private readonly UserReactive<bool> _showAssumptions = new(false);
+    private readonly UserReactive<string> _audience = new(Audiences[0].Value);
+    private readonly UserReactive<Pitch?> _pitch = new(null);
+    private readonly UserReactive<bool> _pitchBusy = new(false);
+    private readonly UserReactive<string?> _pitchError = new(null);
+
+    private Assumptions A => _assumptions.Value;
+
+    private Outcome Current => Outcome.From(_assumptions.Value);
 
     public async Task Main()
     {
-        // Short push-to-talk clips leave Whisper guessing the language; Scribe identifies it better
-        Audio.UseSpeechRecognition(SpeechRecognizerModel.ElevenScribe2);
-        Audio.SpeechRecognizedAsync += async args => await OnSpeechAsync(args.Text);
-        Audio.SpeechNotRecognizedAsync += async args => ShowProblem(args.Reason == SpeechNotRecognizedReason.NoSignal
-            ? "No sound from your mic. Check which mic your device uses."
-            : "Didn't catch that. Try again.");
-
         UI.Root([Page.Default], content: view =>
         {
             view.Column(["h-screen w-full bg-background text-foreground"], content: page =>
             {
-                page.ChatLog(["h-full w-full max-w-2xl mx-auto px-6 py-8 md:py-12 gap-6"],
-                    autoScrollKey: _messages.Count,
-                    header: RenderHeader,
-                    content: list => list.Column(["gap-6 pb-2"], content: RenderMessages),
-                    footer: RenderInput);
+                RenderTopBar(page);
+
+                page.Box(["flex-1 min-h-0"], content: body =>
+                {
+                    body.ScrollArea(["h-full w-full"], viewportStyle: ["px-5 sm:px-8 py-8 sm:py-12"], content: scroll =>
+                    {
+                        scroll.Column(["w-full max-w-6xl mx-auto gap-10 sm:gap-14"], content: content =>
+                        {
+                            var outcome = Current;
+
+                            RenderHero(content, outcome);
+                            RenderStatCards(content, outcome);
+                            RenderGridPanel(content, outcome);
+                            RenderCharts(content, outcome);
+                            RenderPitchPanel(content, outcome);
+                            RenderAssumptionsPanel(content, outcome);
+                            RenderFooter(content);
+                        });
+                    });
+                });
             });
         });
     }
 
-    private void RenderHeader(UIView view)
+    private void RenderTopBar(UIView view)
     {
-        // The client list is reactive, so the count re-renders as people join and leave
         var here = app.ReactiveGlobalState.GetHumanClients().Count();
 
-        view.Column(["shrink-0 gap-4"], content: header =>
+        view.Row(["shrink-0 items-center justify-between gap-4 px-5 sm:px-8 py-4 border-b border-primary bg-card/60"], content: bar =>
         {
-            header.Row(["justify-end items-center gap-2"], content: row =>
+            bar.Row(["items-center gap-3"], content: brand =>
+            {
+                // The wordmark doubles as the product's own diagram: three battens, one module.
+                brand.Row(["items-end gap-[3px]"], content: mark =>
+                {
+                    mark.Box(["w-[5px] h-5 rounded-[1px] bg-brand-solid"]);
+                    mark.Box(["w-[5px] h-7 rounded-[1px] bg-brand-solid"]);
+                    mark.Box(["w-[5px] h-4 rounded-[1px] bg-brand-solid"]);
+                });
+
+                brand.Text(["font-heading uppercase text-2xl leading-none tracking-wide"], text: "Flext");
+                brand.Text([Text.Caption, "hidden sm:block text-muted-foreground border-l border-primary pl-3"],
+                    text: "Savings calculator");
+            });
+
+            bar.Row(["items-center gap-2"], content: row =>
             {
                 row.Box(["w-2 h-2 rounded-full bg-brand-solid"]);
                 row.Text([Text.Caption, "text-muted-foreground"], text: $"{here} here now");
             });
-
-            header.Text(["font-heading uppercase leading-[0.9] text-[18vw] sm:text-8xl"], text: "Untitled.");
         });
     }
 
-    private void RenderMessages(UIView view)
+    private void RenderHero(UIView view, Outcome outcome)
     {
-        if (_messages.Count == 0 && !_busy.Value)
+        view.Column(["gap-7"], content: hero =>
         {
-            view.Row(["flex-wrap gap-2"], content: row =>
+            hero.Column(["gap-4"], content: head =>
             {
-                foreach (var suggestion in Suggestions)
-                {
-                    row.Button([Button.OutlineMd, "rounded-full"], text: suggestion, onClick: async () => await SendAsync(suggestion, []));
-                }
+                head.Text([Text.Caption, "uppercase tracking-[0.2em] text-brand-secondary font-semibold"],
+                    text: "Patent pending · Roof battens, factory-made");
+
+                head.Text(["font-heading uppercase leading-[0.88] text-[13vw] sm:text-7xl lg:text-8xl max-w-4xl",
+                        "motion-[0:opacity-0 translate-y-[14px],100:opacity-100 translate-y-0]",
+                        "motion-duration-700ms motion-fill-both motion-ease-ease-out"],
+                    text: "Roofs should be built in a factory.");
+
+                head.Text([Text.Lg, "text-muted-foreground max-w-2xl leading-relaxed"],
+                    text: "Nordic houses are modular now — except the battens, still nailed down by hand on a roof in the rain. "
+                        + "Set your volume and watch what moving that one layer indoors takes off the table.");
             });
-        }
 
-        foreach (var message in _messages)
-        {
-            view.Column([message.FromUser ? "gap-2 items-end" : "gap-2"], content: column =>
-            {
-                foreach (var picture in message.Pictures)
-                {
-                    column.Image([message.FromUser ? "w-32 rounded-2xl" : "w-full max-w-md rounded-2xl"], data: picture.Data, mimeType: picture.MimeType, alt: picture.Name);
-                }
-
-                if (message.FromUser && message.Text.Length > 0)
-                {
-                    column.Text([Text.Body, "text-muted-foreground"], text: message.Text);
-                }
-                else if (!message.FromUser)
-                {
-                    // Models answer in Markdown
-                    column.Markdown(["default", Text.Body, "leading-relaxed"], content: message.Text);
-
-                    column.Button(["self-start -ml-1 -mt-1 p-1 rounded-md bg-transparent border-0 text-muted-foreground opacity-60 hover:opacity-100 pointer-coarse:opacity-100"],
-                        text: "Read aloud",
-                        onClick: async () => await ReadAloudAsync(message.Text),
-                        content: icon => icon.Icon([Icon.Sm], name: "volume-2"));
-                }
-            });
-        }
-
-        if (_busy.Value)
-        {
-            view.Spinner();
-        }
+            RenderVolumeControl(hero, outcome);
+        });
     }
 
-    private void RenderInput(UIView view)
+    private void RenderVolumeControl(UIView view, Outcome outcome)
     {
-        view.Column(["shrink-0 gap-3"], content: input =>
+        var houses = A.HousesPerYear;
+
+        var metric = _metric.Value;
+        var year = outcome.PerYear(metric);
+
+        // Card tokens are plain class strings, so they go on a Column: the children are then
+        // direct flex items and the gap actually reaches them, which it does not through
+        // Card's own content slot.
+        view.Column([Card.Elevated, "p-6 sm:p-8 gap-7"], content: card =>
         {
-            if (_problem.Value is { } problem)
+            card.Row(["flex-wrap items-center justify-between gap-x-10 gap-y-6"], content: top =>
             {
-                input.Alert(problem.Message, tone: SemanticTone.Error, onDismiss: async () => _problem.Value = null, content: alert =>
+                top.Column(["gap-2"], content: left =>
                 {
-                    if (problem.Retry is { } retry)
+                    left.Text([Text.Caption, "uppercase tracking-[0.15em] text-muted-foreground font-semibold"],
+                        text: "Roofs per year");
+
+                    left.Row(["flex-wrap items-center gap-x-5 gap-y-3"], content: figure =>
                     {
-                        alert.Button([Button.OutlineMd, "mt-3 self-start"], text: "Try again", onClick: async () => await SendAsync(retry.Text, retry.Pictures));
-                    }
+                        figure.Row(["items-baseline gap-2"], content: number =>
+                        {
+                            number.Text(["font-heading text-6xl sm:text-7xl leading-none"], text: Units.Group(houses));
+                            number.Text([Text.Body, "text-muted-foreground"], text: "roofs");
+                        });
+
+                        figure.Row(["items-center gap-2"], content: steppers =>
+                        {
+                            steppers.Button([Button.OutlineMd, "w-11 h-11 p-0 justify-center"],
+                                text: "Fewer roofs per year",
+                                onClick: async () => SetHouses(houses - HousesStep * 5),
+                                content: icon => icon.Icon([Icon.Sm], name: "minus"));
+
+                            steppers.Button([Button.OutlineMd, "w-11 h-11 p-0 justify-center"],
+                                text: "More roofs per year",
+                                onClick: async () => SetHouses(houses + HousesStep * 5),
+                                content: icon => icon.Icon([Icon.Sm], name: "plus"));
+                        });
+                    });
                 });
-            }
 
-            input.Composer(
-                style: ["default", "rounded-3xl bg-card border-0 pl-3"],
-                fieldStyle: ["default", "text-base"],
-                value: _draft.Value,
-                placeholder: "Ask anything, ask for a picture, or drop one in…",
-                busy: _busy.Value,
-                attachments: [.. _attached.Select(p => new ComposerAttachment(p.Name, p.MimeType, p.Data.Length))],
-                accept: ImageTypes,
-                onValueChange: async text => _draft.Value = text,
-                onSubmit: async text =>
+                // What the input buys, stated beside the input rather than only below it.
+                top.Column(["gap-2 sm:items-end sm:text-right"], content: right =>
                 {
-                    if (_busy.Value)
-                    {
-                        return;
-                    }
+                    right.Text([Text.Caption, "uppercase tracking-[0.15em] text-brand-secondary font-semibold"],
+                        text: $"{Units.Short(metric)} saved a year");
 
-                    var pictures = _attached.ToList();
-                    _draft.Value = "";
-                    _attached.Clear();
-                    await SendAsync(text, pictures);
-                },
-                onAttachmentAdded: async args =>
+                    right.Text(["font-heading text-5xl sm:text-6xl leading-none text-brand-secondary"],
+                        text: Units.Say(metric, year.Saved));
+                });
+            });
+
+            card.Column(["gap-2.5"], content: track =>
+            {
+                track.Slider([Slider.Default],
+                    value: [houses],
+                    min: MinHouses,
+                    max: MaxHouses,
+                    step: HousesStep,
+                    ariaLabel: "Roofs per year",
+                    onValueChange: async values => SetHouses(values[0]));
+
+                track.Row(["items-center justify-between"], content: ends =>
                 {
-                    if (args.LocalTempFilePath is not { } path)
-                    {
-                        return;
-                    }
+                    ends.Text([Text.Caption, "font-mono text-muted-foreground"], text: Units.Group(MinHouses));
+                    ends.Text([Text.Caption, "font-mono text-muted-foreground"], text: Units.Group(MaxHouses));
+                });
+            });
 
-                    try
-                    {
-                        // Checked here rather than with maxFileSize, which skips a file without telling anyone
-                        if (args.Size <= MaxImageBytes)
-                        {
-                            _attached.Add(new Picture(await File.ReadAllBytesAsync(path), args.MimeType, args.FileName));
-                        }
-                        else
-                        {
-                            ShowProblem($"{args.FileName} is too large. Images up to 3.5 MB work.");
-                        }
-                    }
-                    finally
-                    {
-                        File.Delete(path);
-                    }
-                },
-                onAttachmentRemoved: async index => _attached.RemoveAt(index),
-                onAttachmentError: async args => ShowProblem($"Couldn't attach {args.FileName}, try again"),
-                // The mic only renders when both capture callbacks are wired; transcripts arrive through Audio.SpeechRecognizedAsync
-                onCaptureStart: async _ => { },
-                onCaptureStop: async _ => { });
+            card.Row(["flex-wrap items-center gap-2"], content: chips =>
+            {
+                chips.Text([Text.Caption, "text-muted-foreground mr-1"], text: "Jump to");
+
+                foreach (var preset in Presets)
+                {
+                    var active = Math.Abs(preset - houses) < 0.5;
+
+                    chips.Button([
+                            active ? Button.PrimaryMd : Button.OutlineMd,
+                            "rounded-full px-4 py-1.5 text-sm",
+                        ],
+                        text: Units.Group(preset),
+                        key: $"preset-{preset}",
+                        onClick: async () => SetHouses(preset));
+                }
+            });
         });
     }
 
-    private async Task OnSpeechAsync(string transcript)
+    private void RenderStatCards(UIView view, Outcome outcome)
     {
-        // Never drop what was said: while a reply runs, or when something is already typed, it joins the draft
-        if (_busy.Value || _draft.Value.Length > 0 || _attached.Count > 0)
+        view.Box(["grid gap-4 grid-cols-1 md:grid-cols-3"], content: grid =>
         {
-            _draft.Value = $"{_draft.Value} {transcript}".Trim();
-            return;
-        }
-
-        await SendAsync(transcript, []);
-    }
-
-    // Keeps a pending retry: a failed message lives only there, so a later problem must not drop it
-    private void ShowProblem(string message) => _problem.Value = new Problem(message, _problem.Value?.Retry);
-
-    private async Task ReadAloudAsync(string text)
-    {
-        int clientId = ReactiveScope.ClientId;
-
-        // Plays only to the client that asked, not to everyone connected
-        var line = Audio.Speak(MediaTargets.To([clientId]), text);
-
-        if (await line.Completion == AudioPlaybackOutcome.Failed)
-        {
-            // The reply stays on screen to read, so a failed playback only needs saying
-            Log.Instance.Warning($"Read aloud failed for client {clientId}: {line.Error?.Message}");
-            ShowProblem("Couldn't play that");
-        }
-    }
-
-    private async Task SendAsync(string text, IReadOnlyList<Picture> pictures)
-    {
-        if (_busy.Value || (string.IsNullOrWhiteSpace(text) && pictures.Count == 0))
-        {
-            return;
-        }
-
-        using var _ = _busy.AsToken();
-        var question = new ChatMessage(true, text.Trim(), pictures);
-        _messages.Add(question);
-        _problem.Value = null;
-
-        IMessagePart[] parts = [.. pictures.Select(p => (IMessagePart)new ImagePart(p.Data, p.MimeType))];
-
-        if (question.Text.Length > 0)
-        {
-            parts = [new TextPart(question.Text), .. parts];
-        }
-
-        var drawn = new List<Picture>();
-
-        try
-        {
-            var (reply, updated) = await Emerge.Run<string>(LLMModel.Claude45Haiku, _context.Value.Add(new MessageBlock(MessageBlockRole.User, parts)), pass =>
+            foreach (var metric in AllMetrics)
             {
-                pass.SystemPrompt = "You are a friendly assistant. Answer briefly in Markdown. When the user wants a picture, call generate_image.";
-                pass.AddTool(Tool.Of("generate_image", "Generate an image and show it to the user",
-                    async ([Description("A detailed description of the image")] string description) =>
+                var year = outcome.PerYear(metric);
+                var active = _metric.Value == metric;
+
+                grid.Box([
+                        active ? Card.Elevated : Card.Subtle,
+                        "flex flex-col p-6 gap-4 cursor-pointer border-2 text-left",
+                        active ? "border-brand" : "border-transparent hover:border-brand/40",
+                        State.Pressable,
+                        Transition.Fast,
+                    ],
+                    key: $"stat-{metric}",
+                    ariaLabel: $"Show {Units.Short(metric)}",
+                    onClick: async () => Show(metric),
+                    content: card =>
                     {
-                        try
+                        card.Row(["items-center justify-between gap-3"], content: head =>
                         {
-                            var image = await ImageGenerator.GenerateAsync(description);
-                            drawn.Add(new Picture(await image.GetDataAsync(), image.MimeType, description));
-                            return "The image is now shown to the user";
-                        }
-                        catch (AIException e)
-                        {
-                            // The model hears a plain failure and tells the user, never the provider's error text
-                            Log.Instance.Warning($"Image generation failed for client {ReactiveScope.ClientIdOrNull}: {e.Message}");
-                            return "Image generation failed. Tell the user briefly and suggest trying again";
-                        }
-                    }));
-            }).FinalAsync();
+                            head.Row(["items-center gap-2.5"], content: label =>
+                            {
+                                label.Box(["w-8 h-8 rounded-lg bg-brand-solid/10 flex items-center justify-center shrink-0"],
+                                    content: tile => tile.Icon([Icon.Sm, "text-brand-secondary"], name: IconFor(metric)));
 
-            if (string.IsNullOrWhiteSpace(reply) && drawn.Count == 0)
-            {
-                throw new InvalidOperationException("The model returned no reply");
+                                label.Text([Text.Caption, "uppercase tracking-[0.12em] font-semibold text-muted-foreground"],
+                                    text: Units.Short(metric));
+                            });
+
+                            head.Text([Text.Caption, "font-mono text-brand-secondary font-semibold"],
+                                text: $"−{Units.Percent(year.SavedFraction)}");
+                        });
+
+                        card.Column(["gap-1"], content: figure =>
+                        {
+                            figure.Text(["font-heading text-4xl leading-none"], text: Units.Say(metric, year.Saved));
+                            figure.Text([Text.Caption, "text-muted-foreground"], text: $"saved per year · {Units.Verb(metric)}");
+                        });
+
+                        // The same proportion the grid below draws, in one line, for a glance.
+                        card.Box(["h-1.5 w-full rounded-full bg-foreground/10 overflow-hidden"], content: track =>
+                            track.Box([
+                                $"h-full rounded-full bg-brand-solid w-[{year.SavedFraction * 100:0.#}%]",
+                                Transition.Normal,
+                            ]));
+                    });
             }
-
-            _context.Value = updated.TrimToLastMessages(ContextBlocks);
-            _messages.Add(new ChatMessage(false, reply ?? "", drawn));
-        }
-        catch (Exception e)
-        {
-            // Keep the message so Try again resends it as it was
-            Log.Instance.Warning($"Reply failed for client {ReactiveScope.ClientIdOrNull}: {e.GetType().Name}: {e.Message}");
-            // Busy guarantees nothing was added after the question
-            _messages.RemoveAt(_messages.Count - 1);
-            _problem.Value = new Problem("Couldn't answer that", question);
-        }
+        });
     }
+
+    private static string IconFor(Metric metric) => metric switch
+    {
+        Metric.Hours => "clock",
+        Metric.Money => "banknote",
+        _ => "leaf",
+    };
+
+    private void RenderFooter(UIView view)
+    {
+        view.Column(["gap-2 pt-2 pb-4 border-t border-primary"], content: footer =>
+        {
+            footer.Text([Text.Caption, "text-muted-foreground pt-4"],
+                text: "Flext — patent-pending factory-made roof battens. Figures are a model built from Flext's "
+                    + "stated 20–30 → 3–4 carpenter hours per roof and Swedish construction norms; every input above is editable.");
+        });
+    }
+
+    private void SetHouses(double value)
+    {
+        var clamped = Math.Clamp(Math.Round(value / HousesStep) * HousesStep, MinHouses, MaxHouses);
+
+        if (Math.Abs(clamped - A.HousesPerYear) < 0.5)
+        {
+            return;
+        }
+
+        _assumptions.Value = A with { HousesPerYear = clamped };
+        Replay();
+    }
+
+    private void Show(Metric metric)
+    {
+        if (_metric.Value == metric)
+        {
+            Replay();
+            return;
+        }
+
+        _metric.Value = metric;
+        Replay();
+    }
+
+    /// A new run id remounts the grid, which is what restarts the CSS timeline.
+    private void Replay() => _run.Value++;
 }
