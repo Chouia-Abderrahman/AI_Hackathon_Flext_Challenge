@@ -110,15 +110,11 @@ public partial class MyHackApp(IApp<SessionIdentity, ClientParameters> app)
         {
             bar.Row(["items-center gap-3"], content: brand =>
             {
-                // The wordmark doubles as the product's own diagram: three battens, one module.
-                brand.Row(["items-end gap-[3px]"], content: mark =>
-                {
-                    mark.Box(["w-[5px] h-5 rounded-[1px] bg-brand-solid"]);
-                    mark.Box(["w-[5px] h-7 rounded-[1px] bg-brand-solid"]);
-                    mark.Box(["w-[5px] h-4 rounded-[1px] bg-brand-solid"]);
-                });
+                // Flext's own wordmark, its paths lifted straight out of the 2024 memorandum
+                // so the bars, the block and the orange are the real ones rather than a
+                // redrawing. w-auto keeps its 3.66:1 ratio at whatever height the bar is.
+                brand.Image(["h-7 w-auto shrink-0"], src: "/flext-logo.svg", alt: "Flext");
 
-                brand.Text(["font-heading uppercase text-2xl leading-none tracking-wide"], text: "Flext");
                 brand.Text([Text.Caption, "hidden sm:block text-muted-foreground border-l border-primary pl-3"],
                     text: "Savings calculator");
             });
