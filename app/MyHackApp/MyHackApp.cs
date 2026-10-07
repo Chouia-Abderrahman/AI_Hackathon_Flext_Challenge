@@ -81,6 +81,11 @@ public partial class MyHackApp(IApp<SessionIdentity, ClientParameters> app)
                             RenderHero(content, outcome);
                             RenderStatCards(content, outcome);
                             RenderGridPanel(content, outcome);
+
+                            // Directly under the squares: when the chatbot moves a dial they
+                            // replay, and the motion is the answer the reader came for.
+                            RenderChatPanel(content, outcome);
+
                             RenderCharts(content, outcome);
                             RenderPitchPanel(content, outcome);
                             RenderAssumptionsPanel(content, outcome);
@@ -189,11 +194,15 @@ public partial class MyHackApp(IApp<SessionIdentity, ClientParameters> app)
                 // What the input buys, stated beside the input rather than only below it.
                 top.Column(["gap-2 sm:items-end sm:text-right"], content: right =>
                 {
-                    right.Text([Text.Caption, "uppercase tracking-[0.15em] font-semibold", FreedText],
-                        text: $"{Units.Short(metric)} saved a year");
+                    // Green is for good news only: on inputs where Flext loses, this figure
+                    // is a cost and has to look like one.
+                    var tone = year.Adverse ? "text-error-700 dark:text-error-400" : FreedText;
 
-                    right.Text(["font-heading text-5xl sm:text-6xl leading-none", FreedText],
-                        text: Units.Say(metric, year.Saved));
+                    right.Text([Text.Caption, "uppercase tracking-[0.15em] font-semibold", tone],
+                        text: $"{Units.Short(metric)} {(year.Adverse ? "added" : "saved")} a year");
+
+                    right.Text(["font-heading text-5xl sm:text-6xl leading-none", tone],
+                        text: Units.Say(metric, year.Magnitude));
                 });
             });
 
@@ -268,14 +277,22 @@ public partial class MyHackApp(IApp<SessionIdentity, ClientParameters> app)
 
                             // A success badge, not the brand colour: orange means work still
                             // spent everywhere else on this page, so a gain needs its own signal.
-                            head.Row([Badge.SuccessSm, "shrink-0 whitespace-nowrap"], content: badge =>
-                                badge.Text(["text-xs font-semibold"], text: Units.Gain(metric, year.SavedFraction)));
+                            // An error badge when the inputs make Flext the dearer way — a green
+                            // badge over a loss is the one thing this page cannot afford.
+                            head.Row([year.Adverse ? Badge.ErrorSm : Badge.SuccessSm, "shrink-0 whitespace-nowrap"],
+                                content: badge => badge.Text(["text-xs font-semibold"],
+                                    text: year.Adverse
+                                        ? Units.Cost(metric, year.AdverseFraction)
+                                        : Units.Gain(metric, year.SavedFraction)));
                         });
 
                         card.Column(["gap-1"], content: figure =>
                         {
-                            figure.Text(["font-heading text-4xl leading-none"], text: Units.Say(metric, year.Saved));
-                            figure.Text([Text.Caption, "text-muted-foreground"], text: $"saved per year · {Units.Verb(metric)}");
+                            figure.Text(["font-heading text-4xl leading-none"], text: Units.Say(metric, year.Magnitude));
+                            figure.Text([Text.Caption, "text-muted-foreground"],
+                                text: year.Adverse
+                                    ? $"added per year · {Units.CostVerb(metric)}"
+                                    : $"saved per year · {Units.Verb(metric)}");
                         });
 
                         // The same proportion the grid below draws, in one line, for a glance:
@@ -309,7 +326,10 @@ public partial class MyHackApp(IApp<SessionIdentity, ClientParameters> app)
 
     private void SetHouses(double value)
     {
-        var clamped = Math.Clamp(Math.Round(value / HousesStep) * HousesStep, MinHouses, MaxHouses);
+        // Held inside the range but NOT snapped to HousesStep: the slider already emits
+        // step-aligned values, and snapping here rounded the 250 preset to 200 — a chip
+        // that set a different number from the one printed on it.
+        var clamped = Math.Clamp(Math.Round(value), MinHouses, MaxHouses);
 
         if (Math.Abs(clamped - A.HousesPerYear) < 0.5)
         {

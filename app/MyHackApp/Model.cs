@@ -53,6 +53,18 @@ public readonly record struct Comparison(double Traditional, double Flext)
     /// assumption set cannot produce a grid with negative or runaway squares.
     public double SavedFraction => Traditional <= 0 ? 0 : Math.Clamp(Saved / Traditional, 0, 1);
 
+    /// True when these inputs make Flext the worse way to build. The module price slider
+    /// alone can reach it, so every figure drawn from this comparison has to say so rather
+    /// than let SavedFraction's clamp round the bad news away.
+    public bool Adverse => Saved < 0;
+
+    /// How much worse, as a share of the traditional figure. Only meaningful when Adverse.
+    public double AdverseFraction => Traditional <= 0 ? 0 : Math.Min(-Saved / Traditional, 9.99);
+
+    /// The saving written as a size, with the direction carried by the words beside it
+    /// rather than by a minus sign.
+    public double Magnitude => Math.Abs(Saved);
+
     public Comparison Times(double n) => new(Traditional * n, Flext * n);
 }
 
@@ -211,6 +223,37 @@ public static class Units
         Metric.Hours => $"{Percent(fraction)} freed",
         Metric.Money => $"{Percent(fraction)} cheaper",
         _ => $"{Percent(fraction)} cleaner",
+    };
+
+    /// The same figure when the inputs make Flext the worse way to build. Reachable by
+    /// hand — the module price slider alone can do it — so the page has to say it rather
+    /// than show a green badge over a loss.
+    public static string Cost(Metric metric, double fraction) => metric switch
+    {
+        Metric.Hours => $"{Percent(fraction)} longer",
+        Metric.Money => $"{Percent(fraction)} more expensive",
+        _ => $"{Percent(fraction)} dirtier",
+    };
+
+    public static string CostsVerb(Metric metric) => metric switch
+    {
+        Metric.Hours => "Flext costs",
+        Metric.Money => "Flext adds",
+        _ => "Flext emits",
+    };
+
+    public static string AddedLabel(Metric metric) => metric switch
+    {
+        Metric.Hours => "Added by Flext",
+        Metric.Money => "Added by Flext",
+        _ => "Emitted by Flext",
+    };
+
+    public static string CostVerb(Metric metric) => metric switch
+    {
+        Metric.Hours => "extra hours on the roof",
+        Metric.Money => "kronor the layer adds",
+        _ => "CO₂e added",
     };
 
     /// What the saved side is called. Hours are freed, kronor saved, carbon avoided —

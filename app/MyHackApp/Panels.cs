@@ -78,15 +78,21 @@ public partial class MyHackApp
                 {
                     figures.Column(["gap-1"], content: saved =>
                     {
-                        saved.Text([Text.Caption, "uppercase tracking-[0.15em] font-semibold", FreedText],
-                            text: Units.FreesVerb(metric));
+                        // On inputs where Flext loses there is nothing freed to colour green,
+                        // and the headline has to name the cost instead.
+                        var tone = year.Adverse ? "text-error-700 dark:text-error-400" : FreedText;
+
+                        saved.Text([Text.Caption, "uppercase tracking-[0.15em] font-semibold", tone],
+                            text: year.Adverse ? Units.CostsVerb(metric) : Units.FreesVerb(metric));
 
                         saved.Row(["items-baseline gap-2.5 flex-wrap"], content: row =>
                         {
-                            row.Text(["font-heading text-5xl sm:text-6xl leading-none", FreedText],
-                                text: Units.Say(metric, year.Saved));
+                            row.Text(["font-heading text-5xl sm:text-6xl leading-none", tone],
+                                text: Units.Say(metric, year.Magnitude));
                             row.Text([Text.Body, "text-muted-foreground pb-1"],
-                                text: $"of {Units.Say(metric, year.Traditional)}");
+                                text: year.Adverse
+                                    ? $"on top of {Units.Say(metric, year.Traditional)}"
+                                    : $"of {Units.Say(metric, year.Traditional)}");
                         });
                     });
 
@@ -107,8 +113,10 @@ public partial class MyHackApp
                     RenderLegendKey(legend, "bg-brand-solid",
                         $"Still worked with Flext — {Units.Say(metric, year.Flext)}");
 
-                    RenderLegendKey(legend, "bg-success-500",
-                        $"{Units.FreedLabel(metric)} — {Units.Say(metric, year.Saved)}");
+                    RenderLegendKey(legend, year.Adverse ? "bg-error-500" : "bg-success-500",
+                        year.Adverse
+                            ? $"{Units.AddedLabel(metric)} — {Units.Say(metric, year.Magnitude)}"
+                            : $"{Units.FreedLabel(metric)} — {Units.Say(metric, year.Saved)}");
                 });
             });
         });
@@ -219,7 +227,9 @@ public partial class MyHackApp
                 {
                     head.Text([Text.BodyStrong], text: "One roof, both ways");
                     head.Text([Text.Caption, "text-muted-foreground"],
-                        text: $"{Units.Long(metric)} for a single roof — {Units.Say(metric, perRoof.Saved)} lighter with Flext.");
+                        text: perRoof.Adverse
+                            ? $"{Units.Long(metric)} for a single roof — {Units.Say(metric, perRoof.Magnitude)} heavier with Flext."
+                            : $"{Units.Long(metric)} for a single roof — {Units.Say(metric, perRoof.Saved)} lighter with Flext.");
                 });
 
                 // Two keys rather than two rows, so each bar can carry its own colour:
@@ -437,30 +447,10 @@ public partial class MyHackApp
         using var _ = _pitchBusy.AsToken();
         _pitchError.Value = null;
 
-        var a = outcome.A;
-        var hours = outcome.PerYear(Metric.Hours);
-        var money = outcome.PerYear(Metric.Money);
-        var co2 = outcome.PerYear(Metric.Co2);
-
         // Every figure the model is allowed to use, already computed and already formatted.
-        // It writes the argument; it never does the arithmetic.
-        var facts = $"""
-            Volume: {Units.Group(a.HousesPerYear)} roofs per year, growing {a.AnnualGrowthPercent:0.#}% a year.
-
-            Per roof, the on-site batten layer:
-            - Carpenter hours: {a.TraditionalHours:0.#} h today, {a.FlextHours:0.#} h with Flext.
-            - Total cost: {Units.Say(Metric.Money, outcome.Money.Traditional)} today, {Units.Say(Metric.Money, outcome.Money.Flext)} with Flext.
-            - The Flext module itself costs MORE than loose battens: {Units.Say(Metric.Money, a.FlextModulePrice)} against {Units.Say(Metric.Money, a.LooseMaterialCost)}. Collapsed labour is what pays for it.
-            - Carbon: {Units.Say(Metric.Co2, outcome.Co2.Traditional)} today, {Units.Say(Metric.Co2, outcome.Co2.Flext)} with Flext.
-            - Offcut waste: {a.SiteWastePercent:0.#}% cutting on a roof, {a.FactoryWastePercent:0.#}% on a factory jig.
-
-            Across a year at this volume:
-            - {Units.Say(Metric.Hours, hours.Saved)} of carpenter time never worked at height ({Units.Percent(hours.SavedFraction)} of the layer).
-            - {Units.Say(Metric.Money, money.Saved)} saved ({Units.Percent(money.SavedFraction)}).
-            - {Units.Say(Metric.Co2, co2.Saved)} of CO2e avoided ({Units.Percent(co2.SavedFraction)}).
-
-            Over 10 years with that growth: {Units.Say(Metric.Money, outcome.CumulativeSaved(Metric.Money, ChartYears))} and {Units.Say(Metric.Hours, outcome.CumulativeSaved(Metric.Hours, ChartYears))}.
-            """;
+        // It writes the argument; it never does the arithmetic. The chatbot reads the same
+        // brief, so the two can never describe this page differently.
+        var facts = Brief(outcome);
 
         try
         {
@@ -557,115 +547,65 @@ public partial class MyHackApp
                 ],
                 content: grid =>
                 {
-                    RenderDial(grid, "On-site hours per roof, today", a.TraditionalHours, 8, 40, 0.5, "h",
-                        "Flext's own figure is 20–30 carpenter hours for the batten layer.",
-                        value => a with { TraditionalHours = value });
-
-                    RenderDial(grid, "On-site hours per roof, with Flext", a.FlextHours, 1, 12, 0.5, "h",
-                        "Lifting a finished module into place instead of cutting battens: 3–4 hours.",
-                        value => a with { FlextHours = value });
-
-                    RenderDial(grid, "Carpenter cost", a.HourlyRate, 300, 1_200, 10, "SEK/h",
-                        "Fully loaded: wage plus social fees plus overhead, not the take-home rate.",
-                        value => a with { HourlyRate = value });
-
-                    RenderDial(grid, "Loose battens and fasteners", a.LooseMaterialCost, 1_000, 20_000, 250, "SEK",
-                        "What the layer costs in materials today, before offcut waste is added.",
-                        value => a with { LooseMaterialCost = value });
-
-                    RenderDial(grid, "Flext module price", a.FlextModulePrice, 1_000, 30_000, 250, "SEK",
-                        "Deliberately dearer than loose timber. This is the objection the hours have to answer.",
-                        value => a with { FlextModulePrice = value });
-
-                    RenderDial(grid, "Offcut waste, cutting on a roof", a.SiteWastePercent, 0, 30, 0.5, "%",
-                        "Timber bought and then thrown away. Drives both cost and carbon.",
-                        value => a with { SiteWastePercent = value });
-
-                    RenderDial(grid, "Offcut waste, cut on a factory jig", a.FactoryWastePercent, 0, 15, 0.5, "%",
-                        "A jig cuts to length, so the same roof needs less timber bought.",
-                        value => a with { FactoryWastePercent = value });
-
-                    RenderDial(grid, "Battens per roof", a.BattenMassKg, 50, 600, 10, "kg",
-                        "Sawn softwood in the batten layer of one house.",
-                        value => a with { BattenMassKg = value });
-
-                    RenderDial(grid, "Carbon in sawn softwood", a.TimberCo2PerKg, 0.05, 1.0, 0.01, "kg CO₂e/kg",
-                        "Cradle to gate: forestry, sawmill and transport to the merchant.",
-                        value => a with { TimberCo2PerKg = value });
-
-                    RenderDial(grid, "Crew travel per site day", a.TripKm, 0, 200, 5, "km",
-                        "A van round trip for every working day the batten job no longer needs.",
-                        value => a with { TripKm = value });
-
-                    RenderDial(grid, "Van emissions", a.VanCo2PerKm, 0.05, 0.6, 0.01, "kg CO₂e/km",
-                        "A loaded light commercial van in mixed Nordic driving.",
-                        value => a with { VanCo2PerKm = value });
-
-                    RenderDial(grid, "Volume growth", a.AnnualGrowthPercent, 0, 60, 1, "%/year",
-                        $"How fast the line fills once the machine runs. Drives the {ChartYears}-year chart only.",
-                        value => a with { AnnualGrowthPercent = value });
+                    foreach (var dial in Dials)
+                    {
+                        RenderDial(grid, dial, a);
+                    }
                 });
         });
     }
 
     /// One assumption: what it is, what it is set to, why that number, and a slider plus
     /// steppers so it can be moved by touch or by keyboard.
-    private void RenderDial(
-        UIView view,
-        string label,
-        double value,
-        double min,
-        double max,
-        double step,
-        string suffix,
-        string why,
-        Func<double, Assumptions> apply)
+    private void RenderDial(UIView view, Dial dial, Assumptions a)
     {
+        var value = dial.Get(a);
+
         void Set(double next)
         {
-            var clamped = Math.Clamp(Math.Round(next / step) * step, min, max);
+            var clamped = dial.Clamp(next);
 
-            if (Math.Abs(clamped - value) < step / 1000)
+            if (Math.Abs(clamped - value) < dial.Step / 1000)
             {
                 return;
             }
 
-            _assumptions.Value = apply(clamped);
+            _assumptions.Value = dial.Set(a, clamped);
             Replay();
         }
 
-        view.Column(["gap-2.5"], key: $"dial-{label}", content: dial =>
+        view.Column(["gap-2.5"], key: $"dial-{dial.Key}", content: column =>
         {
-            dial.Row(["items-baseline justify-between gap-3"], content: head =>
+            column.Row(["items-baseline justify-between gap-3"], content: head =>
             {
-                head.Text([Text.Caption, "font-semibold flex-1"], text: label);
+                head.Text([Text.Caption, "font-semibold flex-1"], text: dial.Label);
                 head.Text([Text.Caption, "font-mono text-brand-secondary font-semibold shrink-0"],
-                    text: $"{value.ToString("0.##", CultureInfo.InvariantCulture)} {suffix}");
+                    text: dial.Say(value));
             });
 
-            dial.Row(["items-center gap-3"], content: row =>
+            column.Row(["items-center gap-3"], content: row =>
             {
                 row.Button([Button.OutlineSm, "w-9 h-9 p-0 justify-center shrink-0"],
-                    text: $"Decrease {label}",
-                    onClick: async () => Set(value - step),
+                    text: $"Decrease {dial.Label}",
+                    onClick: async () => Set(value - dial.Step),
                     content: icon => icon.Icon([Icon.Sm], name: "minus"));
 
                 row.Box(["flex-1"], content: track =>
                     track.Slider([Slider.Default],
                         value: [value],
-                        min: min,
-                        max: max,
-                        step: step,
-                        ariaLabel: label,
+                        min: dial.Min,
+                        max: dial.Max,
+                        step: dial.Step,
+                        ariaLabel: dial.Label,
                         onValueChange: async values => Set(values[0])));
 
                 row.Button([Button.OutlineSm, "w-9 h-9 p-0 justify-center shrink-0"],
-                    text: $"Increase {label}",
-                    onClick: async () => Set(value + step),
+                    text: $"Increase {dial.Label}",
+                    onClick: async () => Set(value + dial.Step),
                     content: icon => icon.Icon([Icon.Sm], name: "plus"));
             });
 
-            dial.Text([Text.Caption, "text-muted-foreground leading-snug"], text: why);
+            column.Text([Text.Caption, "text-muted-foreground leading-snug"], text: dial.Why);
         });
     }
 }

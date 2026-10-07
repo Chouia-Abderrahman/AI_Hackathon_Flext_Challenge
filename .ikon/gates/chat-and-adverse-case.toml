@@ -1,0 +1,60 @@
+kind = "check"
+description = "The chat surface is present and wired, the volume presets set the number printed on them, and the page tells the truth when the inputs make Flext the worse way to build."
+
+# Deliberately no assertion on a live model reply. `ikon test` does not honour `wait`
+# (three chained 30s waits ran in 14s of wall time), so any expect on a generation in
+# flight races it and fails at random. The model round trip is verified by hand; what
+# is gated here is everything that does not depend on it.
+#
+# NOTE: figures in the headline numbers use NON-BREAKING spaces (U+00A0) for both the
+# thousands separator and the gap before the unit, because that is what Units.Say
+# renders. An ordinary space will NOT match.
+#
+# This gate starts and ends with the assumptions disclosure CLOSED. Every gate that
+# opens it must close it again, or the next run cannot find the "Show" control.
+steps = """
+# A known volume, and the metric a first-time visitor lands on.
+fill "Roofs per year" 2000
+tap "Show Hours"
+
+# A gate connects a fresh client session; let the first render arrive before asserting.
+wait 2500
+expect 43 000 h
+
+# The chat panel and the openers that teach a reader what the box is for. An opener
+# that stops rendering is a feature nobody will discover.
+expect Ask it anything
+expect What if carpenters cost a fifth more?
+expect Show me the worst case for Flext
+expect What if the module cost twice as much?
+expect What happens at only 250 roofs a year?
+
+# A preset chip has to set the number printed on it. Snapping the volume to a step of
+# 100 rounded this one to 200 — the chip said 250 and the page built 200 roofs.
+tap 250
+expect 250 roofs
+tap "2 000"
+expect 43 000 h
+
+# When the inputs make Flext the dearer way, the page has to say so. At the module's
+# top price the yearly figure goes negative, and a green "0% cheaper" badge over a
+# loss is the one thing a model an investor is checking cannot afford.
+tap "Show the assumptions"
+fill "Flext module price" 30000
+tap "Show Money"
+expect more expensive
+expect Money added a year
+expect Added by Flext
+expect-absent cheaper
+
+# Back to defaults, and the disclosure closed, so this run leaves nothing behind.
+tap "Reset to defaults"
+fill "Roofs per year" 2000
+tap "Show Money"
+expect 20.5 MSEK
+expect Money saved a year
+tap "Show Hours"
+expect 43 000 h
+expect Freed by Flext
+tap "Hide the assumptions"
+"""
