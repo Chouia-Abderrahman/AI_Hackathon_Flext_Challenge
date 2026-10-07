@@ -62,8 +62,15 @@ public partial class MyHackApp(IApp<SessionIdentity, ClientParameters> app)
 
     private Outcome Current => Outcome.From(_assumptions.Value);
 
+    // Per-client light/dark, wired by UseTheme and flipped from the top bar. The default is
+    // light because the palette is warm paper first; a client that already saved a choice
+    // keeps it.
+    private ThemeControl _theme = null!;
+
     public async Task Main()
     {
+        _theme = UI.UseTheme(Theme.Light);
+
         UI.Root([Page.Default], content: view =>
         {
             view.Column(["h-screen w-full bg-background text-foreground"], content: page =>
@@ -77,6 +84,13 @@ public partial class MyHackApp(IApp<SessionIdentity, ClientParameters> app)
                         scroll.Column(["w-full max-w-6xl mx-auto gap-10 sm:gap-14"], content: content =>
                         {
                             var outcome = Current;
+
+                            content.RoofHero(
+                                headline: "Your house is built in a factory. Why is the roof still built by hand?",
+                                subheadline: "Press play — or drag the handle — and build the same roof two different ways. "
+                                    + "Flext raises build quality, cuts cost and labor, and extends roof life "
+                                    + "by 10–20 years — figures from Develog's 2024 FLEXT memorandum, standard 144 m² roof.",
+                                style: ["w-full"]);
 
                             RenderHero(content, outcome);
                             RenderStatCards(content, outcome);
@@ -118,10 +132,17 @@ public partial class MyHackApp(IApp<SessionIdentity, ClientParameters> app)
                     text: "Savings calculator");
             });
 
-            bar.Row(["items-center gap-2"], content: row =>
+            bar.Row(["items-center gap-3"], content: row =>
             {
                 row.Box(["w-2 h-2 rounded-full bg-brand-solid"]);
                 row.Text([Text.Caption, "text-muted-foreground"], text: $"{here} here now");
+
+                var dark = _theme.Current.Value == Theme.Dark;
+
+                row.Button([Button.OutlineSm, "w-9 h-9 p-0 justify-center"],
+                    text: dark ? "Switch to light mode" : "Switch to dark mode",
+                    onClick: _theme.ToggleAsync,
+                    content: icon => icon.Icon([Icon.Sm], name: dark ? "sun" : "moon"));
             });
         });
     }

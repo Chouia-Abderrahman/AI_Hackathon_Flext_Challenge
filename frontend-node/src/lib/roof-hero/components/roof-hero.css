@@ -1,0 +1,616 @@
+/* Mirrors MyHackApp's IkonTheme exactly (warm paper / slate ink / safety-orange accent)
+   so this custom node never drifts from the rest of the page's palette. */
+.roof-hero {
+  --rh-bg: #f5f2ec;
+  --rh-fg: #15181d;
+  --rh-card: #ffffff;
+  --rh-muted: #5a5852;
+  --rh-border: #e2ded4;
+  --rh-brand: #ef5b25;
+  --rh-brand-light: #f8a37e;
+  --rh-success: #1f8a53;
+  --rh-wood: #b9833f;
+  --rh-rafter: #342c22;
+  --rh-skin: #f2c896;
+  --rh-deck-near: #4a4036;
+  --rh-plank-shadow: #7a5726;
+  --rh-plank-highlight: #e3b876;
+
+  position: relative;
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+  font-family: inherit;
+  color: var(--rh-fg);
+  user-select: none;
+}
+
+/* The dark values, declared once and applied by both selectors below. The in-app toggle
+   sets data-theme on the root, so following prefers-color-scheme alone would leave this
+   node light while the rest of the page went dark. */
+:root[data-theme='dark'] .roof-hero,
+:root.dark .roof-hero {
+  --rh-bg: #101216;
+  --rh-fg: #f2efe8;
+  --rh-card: #181b20;
+  --rh-muted: #9b978e;
+  --rh-border: #262a30;
+  --rh-rafter: #0c0a08;
+  --rh-deck-near: #211c16;
+  --rh-plank-shadow: #5c4019;
+}
+
+/* OS fallback, scoped so it never overrides an explicit light choice from the toggle. */
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme='light']):not([data-theme='dark']) .roof-hero {
+    --rh-bg: #101216;
+    --rh-fg: #f2efe8;
+    --rh-card: #181b20;
+    --rh-muted: #9b978e;
+    --rh-border: #262a30;
+    --rh-rafter: #0c0a08;
+    --rh-deck-near: #211c16;
+    --rh-plank-shadow: #5c4019;
+  }
+}
+
+.roof-hero-head {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  max-width: 56rem;
+}
+
+.roof-hero-headline {
+  font-family: var(--ikon-font-heading, inherit);
+  text-transform: uppercase;
+  line-height: 0.95;
+  font-size: clamp(1.75rem, 4.2vw, 3.3rem);
+  margin: 0;
+  color: var(--rh-fg);
+}
+
+.roof-hero-sub {
+  margin: 0;
+  color: var(--rh-muted);
+  font-size: 1rem;
+}
+
+.roof-hero-stage {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.roof-hero-canvases {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1.25rem;
+}
+
+.roof-hero-canvas {
+  position: relative;
+  min-width: 0;
+  aspect-ratio: 4 / 3;
+  border-radius: 1rem;
+  overflow: hidden;
+  border: 1px solid var(--rh-border);
+  background: var(--rh-bg);
+  box-shadow: inset 0 0 2.5rem color-mix(in srgb, var(--rh-fg) 10%, transparent);
+}
+
+.roof-hero-panel-chip {
+  position: absolute;
+  top: 0.75rem;
+  left: 0.75rem;
+  z-index: 5;
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.3rem 0.65rem;
+  border-radius: 999px;
+  background: var(--rh-fg);
+  color: var(--rh-bg);
+  font-size: 0.66rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  font-weight: 600;
+  transition: background 200ms ease;
+}
+
+.roof-hero-panel-chip.is-done {
+  background: var(--rh-success);
+}
+
+.roof-hero-panel-stat {
+  position: absolute;
+  bottom: 0.75rem;
+  left: 0.75rem;
+  right: 0.75rem;
+  z-index: 5;
+  text-align: center;
+  padding: 0.4rem 0.6rem;
+  border-radius: 0.6rem;
+  background: var(--rh-fg);
+  color: var(--rh-bg);
+  font-size: 0.72rem;
+  font-weight: 700;
+  opacity: 0;
+  transform: translateY(6px);
+  transition: opacity 220ms ease, transform 220ms ease;
+  pointer-events: none;
+}
+
+.roof-hero-panel-stat.is-flext {
+  background: var(--rh-success);
+}
+
+.roof-hero-panel-stat.visible {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+.roof-hero-phase-dot {
+  width: 0.45rem;
+  height: 0.45rem;
+  border-radius: 50%;
+  background: var(--rh-brand);
+}
+
+.roof-hero-phase-dot.is-flext {
+  background: var(--rh-success);
+}
+
+.roof-hero-weather {
+  position: absolute;
+  top: 3.1rem;
+  left: 0.9rem;
+  z-index: 5;
+  font-size: 0.72rem;
+  color: var(--rh-bg);
+  background: color-mix(in srgb, var(--rh-fg) 80%, transparent);
+  padding: 0.25rem 0.6rem;
+  border-radius: 999px;
+}
+
+/* The sky darkening as conditions worsen — the one cue that reads at a glance, before any
+   individual raindrop or flake is noticed. */
+.roof-hero-overcast {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  pointer-events: none;
+  background: var(--rh-rafter);
+  transition: opacity 500ms ease;
+}
+
+.roof-hero-rain,
+.roof-hero-snow {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 400ms ease;
+  z-index: 3;
+}
+
+/* Each layer declares its own lit opacity, so the near/far separation survives activation
+   (a blanket `.active { opacity: 1 }` would flatten them back together). */
+.roof-hero-snow.active {
+  opacity: 1;
+}
+
+.roof-hero-rain-far.active {
+  opacity: 0.55;
+}
+
+.roof-hero-rain-near.active {
+  opacity: 0.6;
+}
+
+/* Two depths of rain streak past at different speeds and weights, the way near and far
+   rain actually separate to the eye, both blown onto the same diagonal by the wind. */
+.roof-hero-rain-far {
+  background-image: repeating-linear-gradient(
+    106deg,
+    transparent 0,
+    transparent 44px,
+    color-mix(in srgb, var(--rh-muted) 18%, transparent) 44px,
+    color-mix(in srgb, var(--rh-muted) 18%, transparent) 45px
+  );
+  background-size: 64px 140%;
+  animation: roof-hero-rain-fall 0.5s linear infinite;
+  filter: blur(0.4px);
+}
+
+.roof-hero-rain-near {
+  background-image: repeating-linear-gradient(
+    106deg,
+    transparent 0,
+    transparent 30px,
+    color-mix(in srgb, var(--rh-card) 34%, transparent) 30px,
+    color-mix(in srgb, var(--rh-card) 34%, transparent) 31.5px
+  );
+  background-size: 46px 140%;
+  animation: roof-hero-rain-fall 0.28s linear infinite;
+}
+
+@keyframes roof-hero-rain-fall {
+  from { background-position: 0 -60px; }
+  to { background-position: -28px 60px; }
+}
+
+/* Two depths of flake plus a slow side-to-side sway, so snow drifts rather than just drops. */
+.roof-hero-snow-far {
+  background-image: radial-gradient(circle, color-mix(in srgb, var(--rh-card) 75%, transparent) 1px, transparent 1.2px);
+  background-size: 34px 34px;
+  animation: roof-hero-snow-fall-far 6s linear infinite;
+}
+
+.roof-hero-snow-near {
+  background-image: radial-gradient(circle, color-mix(in srgb, var(--rh-card) 96%, transparent) 1.8px, transparent 2px);
+  background-size: 52px 52px;
+  animation: roof-hero-snow-fall-near 3.4s linear infinite;
+}
+
+@keyframes roof-hero-snow-fall-far {
+  0% { background-position: 0 0; }
+  50% { background-position: 10px 160px; }
+  100% { background-position: -6px 320px; }
+}
+
+@keyframes roof-hero-snow-fall-near {
+  0% { background-position: 0 0; }
+  50% { background-position: -14px 150px; }
+  100% { background-position: 8px 300px; }
+}
+
+/* A thin, growing drift of accumulated snow along the eave — the ground truth that this
+   has been falling for a while, not just a particle effect passing through. */
+.roof-hero-snow-drift {
+  position: absolute;
+  left: 0.5rem;
+  right: 0.5rem;
+  bottom: 0.5rem;
+  height: 0;
+  z-index: 4;
+  pointer-events: none;
+  background: linear-gradient(180deg, transparent, color-mix(in srgb, var(--rh-card) 92%, transparent));
+  border-radius: 999px 999px 0 0;
+  opacity: 0;
+  transition: opacity 400ms ease, height 600ms ease;
+}
+
+.roof-hero-snow-drift.active {
+  opacity: 1;
+  height: 0.6rem;
+}
+
+/* Fast, faint streaks give the gust direction instead of a vague glow sweeping past. */
+.roof-hero-wind-streaks {
+  position: absolute;
+  inset: 0;
+  z-index: 3;
+  pointer-events: none;
+  background-image: repeating-linear-gradient(
+    98deg,
+    transparent 0,
+    transparent 90px,
+    color-mix(in srgb, var(--rh-card) 26%, transparent) 90px,
+    color-mix(in srgb, var(--rh-card) 26%, transparent) 92px
+  );
+  background-size: 150px 100%;
+  opacity: 0;
+  transition: opacity 250ms ease;
+}
+
+.roof-hero-wind-streaks.active {
+  opacity: 0.5;
+  animation: roof-hero-wind-streak-run 0.6s linear infinite;
+}
+
+@keyframes roof-hero-wind-streak-run {
+  from { background-position: 0 0; }
+  to { background-position: -140px 0; }
+}
+
+.roof-hero-wind-gust {
+  position: absolute;
+  inset: 0;
+  z-index: 3;
+  pointer-events: none;
+  background: linear-gradient(100deg, transparent 40%, color-mix(in srgb, var(--rh-card) 18%, transparent) 50%, transparent 60%);
+  opacity: 0;
+  transition: opacity 250ms ease;
+}
+
+.roof-hero-wind-gust.active {
+  opacity: 1;
+  animation: roof-hero-wind-sweep 1.4s ease-in-out infinite;
+}
+
+@keyframes roof-hero-wind-sweep {
+  0% { transform: translateX(-30%); }
+  100% { transform: translateX(30%); }
+}
+
+.roof-hero-svg {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+
+.roof-hero-fascia {
+  fill: var(--rh-plank-shadow);
+  opacity: 0.55;
+}
+
+.roof-hero-ridge-cap {
+  stroke: var(--rh-plank-highlight);
+  stroke-width: 2;
+  opacity: 0.5;
+}
+
+.roof-hero-batten {
+  transition: opacity 120ms ease;
+}
+
+.roof-hero-worker {
+  transition: transform 220ms ease, opacity 220ms ease;
+}
+
+.roof-hero-worker-shadow {
+  fill: color-mix(in srgb, var(--rh-rafter) 70%, transparent);
+}
+
+.roof-hero-bundle {
+  transition: transform 260ms ease;
+}
+
+.roof-hero-strap {
+  transition: opacity 200ms ease;
+}
+
+.roof-hero-counter-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1.25rem;
+}
+
+.roof-hero-counter {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+  border-radius: 1rem;
+  border: 1px solid var(--rh-border);
+  background: var(--rh-card);
+  padding: 1rem 1.1rem 1.1rem;
+}
+
+.roof-hero-counter-label {
+  font-size: 0.68rem;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  font-weight: 700;
+  color: var(--rh-muted);
+}
+
+.roof-hero-counter-value {
+  font-family: var(--ikon-font-heading, inherit);
+  font-size: clamp(1.7rem, 2.4vw, 2.3rem);
+  line-height: 1;
+  color: var(--rh-fg);
+  transition: color 300ms ease;
+}
+
+.roof-hero-counter-value.is-flext {
+  color: var(--rh-success);
+}
+
+.roof-hero-counter-sub {
+  font-size: 0.74rem;
+  color: var(--rh-muted);
+  line-height: 1.35;
+}
+
+.roof-hero-breakdown-toggle {
+  align-self: flex-start;
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: var(--rh-brand);
+  background: none;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+  text-decoration: underline;
+}
+
+.roof-hero-breakdown {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+  font-size: 0.78rem;
+  max-height: 16rem;
+  overflow-y: auto;
+}
+
+.roof-hero-breakdown-line {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+  padding-bottom: 0.4rem;
+  border-bottom: 1px solid var(--rh-border);
+  color: var(--rh-fg);
+}
+
+.roof-hero-breakdown-label {
+  font-weight: 700;
+  font-size: 0.72rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--rh-muted);
+}
+
+.roof-hero-breakdown-bar-track {
+  height: 0.5rem;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--rh-fg) 8%, transparent);
+  overflow: hidden;
+}
+
+.roof-hero-breakdown-bar-fill {
+  height: 100%;
+  border-radius: 999px;
+  transition: width 260ms ease;
+}
+
+.roof-hero-breakdown-bar-fill.is-traditional {
+  background: var(--rh-wood);
+}
+
+.roof-hero-breakdown-bar-fill.is-flext {
+  background: var(--rh-success);
+}
+
+.roof-hero-breakdown-note {
+  color: var(--rh-muted);
+}
+
+/* The drag handle: the one control that moves the whole experience. */
+.roof-hero-scrubber {
+  display: flex;
+  align-items: center;
+  gap: 0.9rem;
+}
+
+.roof-hero-play {
+  flex-shrink: 0;
+  width: 2.75rem;
+  height: 2.75rem;
+  border-radius: 50%;
+  border: none;
+  background: var(--rh-brand);
+  color: var(--rh-card);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  padding: 0;
+  box-shadow: 0 1px 3px color-mix(in srgb, var(--rh-fg) 30%, transparent);
+  transition: transform 120ms ease, filter 120ms ease;
+}
+
+.roof-hero-play:hover {
+  filter: brightness(1.08);
+}
+
+.roof-hero-play:active {
+  transform: scale(0.94);
+}
+
+.roof-hero-play:focus-visible {
+  outline: 2px solid var(--rh-fg);
+  outline-offset: 2px;
+}
+
+.roof-hero-play svg {
+  width: 1.1rem;
+  height: 1.1rem;
+  fill: currentColor;
+}
+
+/* The replay glyph is drawn with strokes, so it must not take the filled default. */
+.roof-hero-play svg.is-stroked {
+  fill: none;
+}
+
+.roof-hero-scrubber-caption {
+  font-size: 0.72rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--rh-muted);
+  flex-shrink: 0;
+}
+
+.roof-hero-scrubber-track {
+  position: relative;
+  flex: 1;
+  height: 2.75rem;
+  display: flex;
+  align-items: center;
+  cursor: grab;
+  touch-action: none;
+}
+
+.roof-hero-scrubber-track::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  height: 0.5rem;
+  border-radius: 999px;
+  background: var(--rh-border);
+}
+
+.roof-hero-scrubber-fill {
+  position: absolute;
+  left: 0;
+  height: 0.5rem;
+  border-radius: 999px;
+  background: var(--rh-brand);
+  pointer-events: none;
+}
+
+.roof-hero-scrubber-mark {
+  position: absolute;
+  top: 50%;
+  width: 2px;
+  height: 0.9rem;
+  margin-top: -0.45rem;
+  background: var(--rh-card);
+  opacity: 0.8;
+  pointer-events: none;
+}
+
+.roof-hero-scrubber-thumb {
+  position: absolute;
+  top: 50%;
+  width: 1.4rem;
+  height: 1.4rem;
+  margin-left: -0.7rem;
+  margin-top: -0.7rem;
+  border-radius: 50%;
+  background: var(--rh-brand);
+  border: 3px solid var(--rh-card);
+  box-shadow: 0 1px 3px color-mix(in srgb, var(--rh-fg) 30%, transparent);
+  pointer-events: none;
+  transition: transform 120ms ease;
+}
+
+.roof-hero-scrubber-thumb.is-dragging {
+  transform: scale(1.15);
+}
+
+.roof-hero-scrubber-hint {
+  position: absolute;
+  top: -1.6rem;
+  left: 50%;
+  transform: translateX(-50%);
+  font-size: 0.68rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--rh-muted);
+  white-space: nowrap;
+  pointer-events: none;
+}
+
+@media (max-width: 640px) {
+  .roof-hero-canvases,
+  .roof-hero-counter-row {
+    grid-template-columns: 1fr;
+  }
+}

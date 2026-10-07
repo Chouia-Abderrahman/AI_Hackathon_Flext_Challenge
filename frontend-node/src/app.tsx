@@ -6,6 +6,7 @@ import { AuthGuard } from './auth/auth-guard';
 import { authConfig } from './env';
 import { I18nProvider, useI18n } from './i18n/i18n';
 import { en } from './i18n/en';
+import { registerRoofHeroModule } from './lib/roof-hero/roof-hero-module';
 
 function App() {
   return (
@@ -21,7 +22,7 @@ function App() {
 
 function AuthorizedApp() {
   const app = useIkonApp({
-    modules: [registerStandardUiModule, registerLucideIconsModule],
+    modules: [registerStandardUiModule, registerLucideIconsModule, registerRoofHeroModule],
   });
 
   return (
