@@ -62,7 +62,7 @@ public partial class MyHackApp
                     left.Text([Text.Body, "text-muted-foreground max-w-xl"],
                         text: $"Every square is {Units.SayPrecise(metric, perCell)} of {Units.Long(metric).ToLowerInvariant()} "
                             + $"across {Units.Group(outcome.A.HousesPerYear)} roofs. Watch the whole block fill with the work a roof "
-                            + "takes today: what drains away is what Flext frees, and the orange left behind is all the work still done.");
+                            + "takes today: everything that turns green is what Flext gives back, and the orange left behind is all the work still done.");
                 });
 
                 RenderMetricSwitch(head);
@@ -103,7 +103,7 @@ public partial class MyHackApp
                     RenderLegendKey(legend, "bg-brand-solid",
                         $"Still worked with Flext — {Units.Say(metric, year.Flext)}");
 
-                    RenderLegendKey(legend, "bg-foreground/15",
+                    RenderLegendKey(legend, "bg-success-500",
                         $"{Units.FreedLabel(metric)} — {Units.Say(metric, year.Saved)}");
                 });
             });
@@ -174,7 +174,7 @@ public partial class MyHackApp
                     grid.Box([
                             // The container's rows give the cell its height; squareness comes
                             // from the grid's aspect matching its column and row counts.
-                            "relative rounded-[2px] bg-foreground/15",
+                            "relative rounded-[2px] bg-success-500",
                             "motion-[0:opacity-0_scale-[0.4],100:opacity-100_scale-100]",
                             $"motion-duration-260ms motion-delay-[{wave}ms]",
                             // 600 squares is far too many to each take a GPU layer.
