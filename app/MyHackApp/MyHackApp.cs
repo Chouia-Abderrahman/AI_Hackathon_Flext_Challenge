@@ -115,8 +115,9 @@ public partial class MyHackApp(IApp<SessionIdentity, ClientParameters> app)
                 // redrawing. w-auto keeps its 3.66:1 ratio at whatever height the bar is.
                 brand.Image(["h-7 w-auto shrink-0"], src: "/flext-logo.svg", alt: "Flext");
 
+                // The memorandum's own subtitle for the product, rather than a name for this page.
                 brand.Text([Text.Caption, "hidden sm:block text-muted-foreground border-l border-primary pl-3"],
-                    text: "Savings calculator");
+                    text: "Future Building Standard");
             });
 
             bar.Row(["items-center gap-3"], content: row =>
