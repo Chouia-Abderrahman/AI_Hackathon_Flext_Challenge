@@ -408,7 +408,12 @@ public partial class MyHackApp
                 }
                 else
                 {
-                    card.ChatLog(["max-h-[26rem]"],
+                    // A DEFINITE height, not max-h: the scrolling viewport inside sizes itself
+                    // to 100% of this box, and a percentage against a max-height-only parent
+                    // does not constrain — the viewport grew to the full transcript, nothing
+                    // overflowed inside it, and the outer simply clipped the rest away.
+                    // "default" keeps the themed wiring that a bare style array would replace.
+                    card.ChatLog(["default", "h-[26rem]"],
                         autoScrollKey: $"{_turns.Count}-{_streaming.Value.Length}-{_chatWorking.Value}",
                         content: log =>
                         {
