@@ -11,7 +11,7 @@ fill "Roofs per year" 2000
 
 # 2 000 roofs x (25 h - 3.5 h) = 43 000 carpenter hours.
 expect 43 000 h
-expect Removed by Flext
+expect Freed by Flext
 
 # The dearer module still wins on total cost: 23 530 SEK against 13 275 SEK a roof.
 tap "Show Money"

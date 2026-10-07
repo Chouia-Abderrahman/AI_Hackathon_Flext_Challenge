@@ -12,10 +12,24 @@ public partial class MyHackApp
     private const int GridRows = 15;
     private const int GridCells = GridColumns * GridRows;
 
-    // One diagonal wave of squares, then a second wave that paints the saved ones.
-    // The step is set so the longest diagonal still lands inside a second.
+    // Three diagonal waves: the empty block appears, every square fills orange as the work
+    // the roof needs today, then the squares Flext frees drain back out, leaving only the
+    // work that is still done. The step keeps the longest diagonal inside a second.
     private const int WaveStepMs = 11;
-    private const int AccentDelayMs = 700;
+    private const int FillDelayMs = 700;
+
+    // The drain is one track with the hold built into its keyframes, so a freed square and
+    // a kept square start together and only part company once the block is full.
+    private const int DrainDurationMs = 1500;
+
+    // The charts carry the grid's colour language: orange is the work still done, grey the
+    // work today's method needs. Charts take literal colours rather than theme classes, so
+    // the grey is a mid tone chosen to read on both the paper and the dark scheme.
+    private const string KeptColor = "#ef5b25";
+    private const string FreedColor = "#86827a";
+
+    private const string TodayLabel = "On site today";
+    private const string FlextLabel = "With Flext";
 
     private static readonly Audience[] Audiences =
     [
@@ -33,7 +47,9 @@ public partial class MyHackApp
     {
         var metric = _metric.Value;
         var year = outcome.PerYear(metric);
-        var savedCells = (int)Math.Round(year.SavedFraction * GridCells);
+        // Orange marks the work still done, so the kept squares are the Flext side of the
+        // comparison and the rest of the block is the capacity handed back.
+        var keptCells = GridCells - (int)Math.Round(year.SavedFraction * GridCells);
         var perCell = year.Traditional / GridCells;
 
         view.Column(["gap-5"], content: panel =>
@@ -45,7 +61,8 @@ public partial class MyHackApp
                     left.Text(["font-heading uppercase leading-none text-3xl sm:text-4xl"], text: "One year of roofs");
                     left.Text([Text.Body, "text-muted-foreground max-w-xl"],
                         text: $"Every square is {Units.SayPrecise(metric, perCell)} of {Units.Long(metric).ToLowerInvariant()} "
-                            + $"across {Units.Group(outcome.A.HousesPerYear)} roofs. The orange squares are the ones Flext takes away.");
+                            + $"across {Units.Group(outcome.A.HousesPerYear)} roofs. Watch the whole block fill with the work a roof "
+                            + "takes today: what drains away is what Flext frees, and the orange left behind is all the work still done.");
                 });
 
                 RenderMetricSwitch(head);
@@ -79,15 +96,15 @@ public partial class MyHackApp
                         });
                 });
 
-                RenderSquares(card, savedCells);
+                RenderSquares(card, keptCells);
 
                 card.Row(["flex-wrap items-center gap-x-6 gap-y-3 pt-1"], content: legend =>
                 {
                     RenderLegendKey(legend, "bg-brand-solid",
-                        $"Removed by Flext — {Units.Say(metric, year.Saved)}");
+                        $"Still worked with Flext — {Units.Say(metric, year.Flext)}");
 
                     RenderLegendKey(legend, "bg-foreground/15",
-                        $"Still needed — {Units.Say(metric, year.Flext)}");
+                        $"Freed by Flext — {Units.Say(metric, year.Saved)}");
                 });
             });
         });
@@ -127,7 +144,7 @@ public partial class MyHackApp
     /// The grid itself. Each square carries its own delay rather than leaning on
     /// `motion-per-children`, whose nth-child stagger runs out at 256 positions and would
     /// drop the tail of a larger grid into unison.
-    private void RenderSquares(UIView view, int savedCells)
+    private void RenderSquares(UIView view, int keptCells)
     {
         view.Box([
                 "grid gap-[2px] sm:gap-[3px] w-full",
@@ -149,28 +166,34 @@ public partial class MyHackApp
                 for (var index = 0; index < GridCells; index++)
                 {
                     var wave = (index / GridColumns + index % GridColumns) * WaveStepMs;
-                    var saved = index < savedCells;
+
+                    // The kept squares lead the block so the work that remains reads as one
+                    // solid mass instead of orange confetti scattered through the grid.
+                    var kept = index < keptCells;
 
                     grid.Box([
                             // The container's rows give the cell its height; squareness comes
                             // from the grid's aspect matching its column and row counts.
                             "relative rounded-[2px] bg-foreground/15",
-                            "motion-[0:opacity-0 scale-[0.4],100:opacity-100 scale-100]",
+                            "motion-[0:opacity-0_scale-[0.4],100:opacity-100_scale-100]",
                             $"motion-duration-260ms motion-delay-[{wave}ms]",
-                            // 200 squares is far too many to each take a GPU layer.
+                            // 600 squares is far too many to each take a GPU layer.
                             "motion-fill-both motion-ease-ease-out motion-no-promote",
                         ],
                         content: cell =>
                         {
-                            if (!saved)
-                            {
-                                return;
-                            }
-
+                            // Every square fills: the full block is the work a roof takes today.
+                            // A kept square holds that fill; a freed one drains back out, and
+                            // `motion-fill-both` leaves it resting on its last, empty keyframe.
                             cell.Box([
                                 "absolute inset-0 rounded-[2px] bg-brand-solid",
-                                "motion-[0:opacity-0 scale-[0.2],60:opacity-100 scale-[1.15],100:opacity-100 scale-100]",
-                                $"motion-duration-420ms motion-delay-[{AccentDelayMs + wave}ms]",
+                                kept
+                                    ? "motion-[0:opacity-0_scale-[0.2],60:opacity-100_scale-[1.15],100:opacity-100_scale-100]"
+                                    : "motion-[0:opacity-0_scale-[0.2],18:opacity-100_scale-[1.15],26:opacity-100_scale-100,62:opacity-100_scale-100,100:opacity-0_scale-[0.55]]",
+                                kept
+                                    ? "motion-duration-420ms"
+                                    : $"motion-duration-{DrainDurationMs}ms",
+                                $"motion-delay-[{FillDelayMs + wave}ms]",
                                 "motion-fill-both motion-ease-ease-out motion-no-promote",
                             ]);
                         });
@@ -195,26 +218,30 @@ public partial class MyHackApp
                         text: $"{Units.Long(metric)} for a single roof — {Units.Say(metric, perRoof.Saved)} lighter with Flext.");
                 });
 
+                // Two keys rather than two rows, so each bar can carry its own colour:
+                // orange is the work still done, grey the work that today's method needs.
                 card.BarChart(["h-64 w-full"],
                     data:
                     [
                         new Dictionary<string, object>
                         {
-                            ["side"] = "On site today",
-                            ["value"] = Math.Round(perRoof.Traditional, 1),
-                        },
-                        new Dictionary<string, object>
-                        {
-                            ["side"] = "With Flext",
-                            ["value"] = Math.Round(perRoof.Flext, 1),
+                            ["layer"] = "The batten layer",
+                            [TodayLabel] = Math.Round(perRoof.Traditional, 1),
+                            [FlextLabel] = Math.Round(perRoof.Flext, 1),
                         },
                     ],
-                    keys: ["value"],
-                    indexBy: "side",
+                    keys: [TodayLabel, FlextLabel],
+                    indexBy: "layer",
+                    groupMode: BarGroupMode.Grouped,
+                    colors: [FreedColor, KeptColor],
                     valueUnit: unit,
-                    padding: 0.45,
+                    padding: 0.35,
+                    innerPadding: 6,
                     borderRadius: 4,
                     enableGridX: false,
+                    // Anchor and Direction already default to Bottom and Row.
+                    legends: [new LegendConfig { TranslateY = 56, ItemWidth = 140, ItemHeight = 18 }],
+                    margin: new ChartMargin { Top = 10, Right = 20, Bottom = 70, Left = 64 },
                     key: $"bars-{metric}");
             });
 
@@ -222,36 +249,50 @@ public partial class MyHackApp
             {
                 card.Column(["gap-1"], content: head =>
                 {
-                    head.Text([Text.BodyStrong], text: $"Banked over {ChartYears} years");
+                    head.Text([Text.BodyStrong], text: $"Both ways, over {ChartYears} years");
                     head.Text([Text.Caption, "text-muted-foreground"],
-                        text: $"Cumulative savings as volume compounds at {outcome.A.AnnualGrowthPercent:0.#}% a year — "
-                            + $"{Units.Say(metric, outcome.CumulativeSaved(metric, ChartYears))} by year {ChartYears}.");
+                        text: $"As volume compounds at {outcome.A.AnnualGrowthPercent:0.#}% a year the two curves part company. "
+                            + $"The gap by year {ChartYears} is {Units.Say(metric, outcome.CumulativeSaved(metric, ChartYears))}.");
                 });
+
+                var cumulative = outcome.Cumulative(metric, ChartYears);
 
                 // Plotted in whatever unit keeps the axis legible: raw kronor would
                 // label the ten-year total "532,000,000 SEK".
-                var (divisor, axisUnit) = Units.AxisScale(metric, outcome.CumulativeSaved(metric, ChartYears));
+                var (divisor, axisUnit) = Units.AxisScale(metric, cumulative.Traditional);
 
                 card.LineChart(["h-64 w-full"],
                     data:
                     [
                         new LineChartSeries
                         {
-                            Id = $"Cumulative {Units.Short(metric).ToLowerInvariant()} saved",
+                            Id = TodayLabel,
+                            Color = FreedColor,
                             Data = Enumerable.Range(1, ChartYears).Select(y => new LineChartPoint
                             {
                                 X = $"Y{y}",
-                                Y = Math.Round(outcome.CumulativeSaved(metric, y) / divisor, 2),
+                                Y = Math.Round(outcome.Cumulative(metric, y).Traditional / divisor, 2),
+                            }),
+                        },
+                        new LineChartSeries
+                        {
+                            Id = FlextLabel,
+                            Color = KeptColor,
+                            Data = Enumerable.Range(1, ChartYears).Select(y => new LineChartPoint
+                            {
+                                X = $"Y{y}",
+                                Y = Math.Round(outcome.Cumulative(metric, y).Flext / divisor, 2),
                             }),
                         },
                     ],
                     valueUnit: axisUnit,
                     curve: LineCurve.MonotoneX,
-                    enableArea: true,
-                    areaOpacity: 0.16,
                     enableGridX: false,
                     lineWidth: 3,
-                    pointSize: 7,
+                    pointSize: 6,
+                    // Anchor and Direction already default to Bottom and Row.
+                    legends: [new LegendConfig { TranslateY = 56, ItemWidth = 140, ItemHeight = 18 }],
+                    margin: new ChartMargin { Top = 10, Right = 20, Bottom = 70, Left = 64 },
                     key: $"line-{metric}");
             });
         });
@@ -345,7 +386,7 @@ public partial class MyHackApp
     {
         view.Column([
                 "gap-5 pt-6 border-t border-primary",
-                "motion-[0:opacity-0 translate-y-[10px],100:opacity-100 translate-y-0]",
+                "motion-[0:opacity-0_translate-y-[10px],100:opacity-100_translate-y-0]",
                 "motion-duration-400ms motion-fill-both motion-ease-ease-out",
             ],
             content: body =>

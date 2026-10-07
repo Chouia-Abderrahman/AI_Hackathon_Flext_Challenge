@@ -71,19 +71,26 @@ public record Outcome(Comparison Hours, Comparison Money, Comparison Co2, Assump
     public double HousesInYear(int year) =>
         A.HousesPerYear * Math.Pow(1 + A.AnnualGrowthPercent / 100, year - 1);
 
-    /// Savings banked from year 1 through the given year.
-    public double CumulativeSaved(Metric metric, int throughYear)
+    /// Roofs built from year 1 through the given year.
+    public double HousesThrough(int throughYear)
     {
-        var perRoof = PerRoof(metric).Saved;
         var total = 0.0;
 
         for (var year = 1; year <= throughYear; year++)
         {
-            total += perRoof * HousesInYear(year);
+            total += HousesInYear(year);
         }
 
         return total;
     }
+
+    /// Savings banked from year 1 through the given year.
+    public double CumulativeSaved(Metric metric, int throughYear) =>
+        PerRoof(metric).Saved * HousesThrough(throughYear);
+
+    /// Both ways of building, accumulated: the gap between them is the saving.
+    public Comparison Cumulative(Metric metric, int throughYear) =>
+        PerRoof(metric).Times(HousesThrough(throughYear));
 
     public static Outcome From(Assumptions a)
     {

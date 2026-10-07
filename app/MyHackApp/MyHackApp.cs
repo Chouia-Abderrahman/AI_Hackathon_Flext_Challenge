@@ -131,7 +131,7 @@ public partial class MyHackApp(IApp<SessionIdentity, ClientParameters> app)
                     text: "Patent pending · Roof battens, factory-made");
 
                 head.Text(["font-heading uppercase leading-[0.88] text-[13vw] sm:text-7xl lg:text-8xl max-w-4xl",
-                        "motion-[0:opacity-0 translate-y-[14px],100:opacity-100 translate-y-0]",
+                        "motion-[0:opacity-0_translate-y-[14px],100:opacity-100_translate-y-0]",
                         "motion-duration-700ms motion-fill-both motion-ease-ease-out"],
                     text: "Roofs should be built in a factory.");
 
@@ -276,10 +276,11 @@ public partial class MyHackApp(IApp<SessionIdentity, ClientParameters> app)
                             figure.Text([Text.Caption, "text-muted-foreground"], text: $"saved per year · {Units.Verb(metric)}");
                         });
 
-                        // The same proportion the grid below draws, in one line, for a glance.
+                        // The same proportion the grid below draws, in one line, for a glance:
+                        // the orange run is the work still done, the empty track what is freed.
                         card.Box(["h-1.5 w-full rounded-full bg-foreground/10 overflow-hidden"], content: track =>
                             track.Box([
-                                $"h-full rounded-full bg-brand-solid w-[{year.SavedFraction * 100:0.#}%]",
+                                $"h-full rounded-full bg-brand-solid w-[{(1 - year.SavedFraction) * 100:0.#}%]",
                                 Transition.Normal,
                             ]));
                     });
