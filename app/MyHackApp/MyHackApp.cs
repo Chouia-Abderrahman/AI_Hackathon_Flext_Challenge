@@ -5,9 +5,6 @@ public record SessionIdentity(string? UserId);
 
 public record ClientParameters(string Name);
 
-/// The pitch the model writes from the numbers on screen.
-public record Pitch(string Headline, string[] Points, string Close);
-
 [App]
 public partial class MyHackApp(IApp<SessionIdentity, ClientParameters> app)
 {
@@ -43,7 +40,7 @@ public partial class MyHackApp(IApp<SessionIdentity, ClientParameters> app)
     private const double MaxHouses = 10_000;
     private const double HousesStep = 100;
 
-    private const int ChartYears = 10;
+    private const int HorizonYears = 10;
 
     private readonly UserReactive<Assumptions> _assumptions = new(new Assumptions());
     private readonly UserReactive<Metric> _metric = new(Metric.Hours);
@@ -53,10 +50,6 @@ public partial class MyHackApp(IApp<SessionIdentity, ClientParameters> app)
     private readonly UserReactive<int> _run = new(0);
 
     private readonly UserReactive<bool> _showAssumptions = new(false);
-    private readonly UserReactive<string> _audience = new(Audiences[0].Value);
-    private readonly UserReactive<Pitch?> _pitch = new(null);
-    private readonly UserReactive<bool> _pitchBusy = new(false);
-    private readonly UserReactive<string?> _pitchError = new(null);
 
     private Assumptions A => _assumptions.Value;
 
@@ -100,8 +93,6 @@ public partial class MyHackApp(IApp<SessionIdentity, ClientParameters> app)
                             // replay, and the motion is the answer the reader came for.
                             RenderChatPanel(content, outcome);
 
-                            RenderCharts(content, outcome);
-                            RenderPitchPanel(content, outcome);
                             RenderAssumptionsPanel(content, outcome);
                             RenderFooter(content);
                         });

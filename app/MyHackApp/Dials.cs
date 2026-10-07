@@ -73,7 +73,7 @@ public partial class MyHackApp
             a => a.VanCo2PerKm, (a, v) => a with { VanCo2PerKm = v }),
 
         new("annual_growth_percent", "Volume growth", 0, 60, 1, "%/year",
-            $"How fast the line fills once the machine runs. Drives the {ChartYears}-year chart only.",
+            $"How fast the line fills once the machine runs. Drives the {HorizonYears}-year totals only.",
             a => a.AnnualGrowthPercent, (a, v) => a with { AnnualGrowthPercent = v }),
     ];
 

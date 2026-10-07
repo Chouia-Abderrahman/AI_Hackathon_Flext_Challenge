@@ -75,7 +75,7 @@ public partial class MyHackApp
             - {Units.Say(Metric.Money, money.Saved)} saved ({Units.Percent(money.SavedFraction)}).
             - {Units.Say(Metric.Co2, co2.Saved)} of CO2e avoided ({Units.Percent(co2.SavedFraction)}).
 
-            Over {ChartYears} years with that growth: {Units.Say(Metric.Money, outcome.CumulativeSaved(Metric.Money, ChartYears))} and {Units.Say(Metric.Hours, outcome.CumulativeSaved(Metric.Hours, ChartYears))}.
+            Over {HorizonYears} years with that growth: {Units.Say(Metric.Money, outcome.CumulativeSaved(Metric.Money, HorizonYears))} and {Units.Say(Metric.Hours, outcome.CumulativeSaved(Metric.Hours, HorizonYears))}.
             """;
     }
 

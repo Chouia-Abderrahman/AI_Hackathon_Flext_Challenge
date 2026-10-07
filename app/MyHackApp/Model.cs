@@ -132,7 +132,7 @@ public record Outcome(Comparison Hours, Comparison Money, Comparison Co2, Assump
 }
 
 /// How each metric is named and written. Kept in one place so the grid legend, the stat
-/// cards, the charts and the AI prompt never disagree about what a number means.
+/// cards and the AI prompt never disagree about what a number means.
 public static class Units
 {
     public static string Short(Metric metric) => metric switch
@@ -154,14 +154,6 @@ public static class Units
         Metric.Hours => "hours never worked on a roof",
         Metric.Money => "kronor that stay in the build",
         _ => "CO₂e never emitted",
-    };
-
-    /// The bare unit, for a chart axis where the scale is already stated.
-    public static string Axis(Metric metric) => metric switch
-    {
-        Metric.Hours => "h",
-        Metric.Money => "SEK",
-        _ => "kg",
     };
 
     /// Thousands grouped with a non-breaking space, the Swedish way, and never
@@ -198,23 +190,6 @@ public static class Units
         _ when Math.Abs(value) >= 1_000 => $"{Decimals(value / 1_000, 2)} t",
         _ => $"{Decimals(value, 1)} kg",
     };
-
-    /// A divisor and a unit for a chart axis, so a ten-year total reads "532 MSEK"
-    /// rather than "532,000,000 SEK".
-    public static (double Divisor, string Unit) AxisScale(Metric metric, double max)
-    {
-        var m = Math.Abs(max);
-
-        return metric switch
-        {
-            Metric.Money when m >= 1_000_000 => (1_000_000, "MSEK"),
-            Metric.Money => (1, "SEK"),
-            Metric.Hours when m >= 100_000 => (1_000, "k h"),
-            Metric.Hours => (1, "h"),
-            _ when m >= 1_000 => (1_000, "t"),
-            _ => (1, "kg"),
-        };
-    }
 
     /// The improvement said as a gain, never as a reduction: a minus sign in front of good
     /// news reads as a loss, and these numbers going down is the entire point of the product.
